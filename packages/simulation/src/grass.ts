@@ -1,5 +1,20 @@
 import type { PastureCell, Weather } from "@grazingcattle/game-types";
 
+// ---------------------------------------------------------------------------
+// PLAIN-ENGLISH OVERVIEW
+//
+// Every grid cell has a grassBiomassKgHa (how much grass is standing there
+// right now, in kg per hectare) and a maxBiomassKgHa (the ceiling that spot
+// of land can support). Each simulated hour, grass grows a bit toward that
+// ceiling. How fast depends on three multipliers, each 0-1, that all have to
+// be reasonably good at once for grass to grow well:
+//   - temperature (grass barely grows when it's freezing or scorching)
+//   - soil moisture (dry ground can't support fast growth)
+//   - rootHealth (roots damaged by overgrazing can't fuel fast regrowth)
+// This file does NOT remove grass for grazing — that's grazing.ts. This file
+// only ever adds grass back.
+// ---------------------------------------------------------------------------
+
 /**
  * Growth-rate reference constants. Tunable; revisited in Step 6.
  * Reference: Cacho (1993) sigmoid pasture growth — logistic curve driven by
@@ -29,14 +44,26 @@ const GROWTH = {
  */
 const ROOT_ZONE_CAPACITY_MM = 120;
 
-/** Bell-curve-ish response to temperature, 0–1. */
+/**
+ * Bell-curve-ish response to temperature, 0–1.
+ * Plain English: grass grows fastest at optimalTempC (20°C). The further
+ * away the actual temperature is (in either direction — too cold OR too
+ * hot), the slower it grows. Below minGrowthTempC (2°C) it stops entirely —
+ * that's winter dormancy.
+ */
 function computeTemperatureFactor(temperatureC: number): number {
   if (temperatureC < GROWTH.minGrowthTempC) return 0;
   const delta = temperatureC - GROWTH.optimalTempC;
   return Math.exp(-GROWTH.tempSensitivity * delta * delta);
 }
 
-/** Soil moisture (0–1 bucket) limits growth below a comfortable threshold. */
+/**
+ * Soil moisture (0–1 bucket) limits growth below a comfortable threshold.
+ * Plain English: once soil moisture is at 0.6 (60% of the root zone's water
+ * capacity) or higher, water isn't the bottleneck and this factor maxes out
+ * at 1. Below that, growth is throttled proportionally — drier ground grows
+ * grass more slowly, all else equal.
+ */
 function computeMoistureFactor(soilMoisture: number): number {
   return Math.max(0, Math.min(1, soilMoisture / 0.6));
 }
@@ -50,14 +77,24 @@ export function growGrassOneHour(cell: PastureCell, weather: Weather): PastureCe
   const temperatureFactor = computeTemperatureFactor(weather.temperatureC);
   const moistureFactor = computeMoistureFactor(cell.soilMoisture);
 
-  // rootHealth directly throttles growth rate — this is the mechanical
-  // consequence of overgrazing forcing the plant to draw down root reserves.
+  // Combine all three conditions multiplicatively: if ANY one of them is
+  // bad (e.g. temperatureFactor near 0 in winter), growth is slow no matter
+  // how good the others are. rootHealth directly throttles growth rate —
+  // this is the mechanical consequence of overgrazing forcing the plant to
+  // draw down root reserves instead of growing new leaf.
   const growthRate =
     GROWTH.baseRatePerHour * temperatureFactor * moistureFactor * cell.rootHealth;
 
+  // The "logistic" part: growth slows down as biomass approaches the max.
+  // At low biomass (little grass) this term is small too — not much leaf
+  // area yet to photosynthesise with. It peaks around the halfway point
+  // (biomass = maxBiomass / 2) and shrinks toward 0 again near the ceiling.
+  // This S-shaped growth curve is what real pasture growth looks like.
   const logisticTerm = cell.grassBiomassKgHa * (1 - cell.grassBiomassKgHa / cell.maxBiomassKgHa);
   const deltaBiomass = growthRate * logisticTerm;
 
+  // Add this hour's growth, but never let biomass go negative or exceed
+  // the cell's own ceiling.
   const grassBiomassKgHa = Math.max(
     0,
     Math.min(cell.maxBiomassKgHa, cell.grassBiomassKgHa + deltaBiomass),
@@ -71,6 +108,9 @@ export function growGrassOneHour(cell: PastureCell, weather: Weather): PastureCe
  * drains it (higher in heat/sunlight). Simple, not a real water-balance model.
  */
 export function updateSoilMoistureOneHour(cell: PastureCell, weather: Weather): PastureCell {
+  // Think of soilMoisture as a bucket (the "root zone") that fills with
+  // rain and drains through evapotranspiration (water lost to sun/heat/
+  // plants). This function just does that bucket math for one hour.
   const rainMmPerHour = weather.rainfallMm / 24;
 
   // Reference evapotranspiration, mm/day: a baseline plus sunlight and
@@ -80,6 +120,8 @@ export function updateSoilMoistureOneHour(cell: PastureCell, weather: Weather): 
     1.5 + (weather.sunlightHours / 12) * 2 + Math.max(0, weather.temperatureC - 15) / 10;
   const evapotranspirationMmPerHour = evapotranspirationMmPerDay / 24;
 
+  // Net change this hour = rain in minus water lost, converted from mm of
+  // water into a fraction of the bucket's total capacity (ROOT_ZONE_CAPACITY_MM).
   const netMmPerHour = rainMmPerHour - evapotranspirationMmPerHour;
   const soilMoisture = Math.max(
     0,

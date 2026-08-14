@@ -2,6 +2,22 @@ import type { Cow, FarmEvent } from "@grazingcattle/game-types";
 import { DAILY_INTAKE_FRACTION_OF_BODYWEIGHT } from "./grazing";
 import { rngFor } from "./rng";
 
+// ---------------------------------------------------------------------------
+// PLAIN-ENGLISH OVERVIEW
+//
+// Two separate ideas about a cow's size:
+//   - "frame" (matureWeightKg, expectedWeightForAge): how big this animal's
+//     skeleton grows to be over its lifetime, regardless of feeding. A
+//     calf's frame grows steadily whether pasture is great or poor.
+//   - "condition" (bodyConditionScore, weightKg vs. expected): how well-fed
+//     the animal is RIGHT NOW relative to its frame. This is what swings
+//     up and down week to week with grazing management.
+// weightKg = frame + condition combined, and everything else in this file
+// (health, fertility, death risk) is ultimately driven by how well-fed the
+// animal has been, which traces all the way back to the grass it could
+// actually reach.
+// ---------------------------------------------------------------------------
+
 /**
  * Calibration references (not gospel): liveweight loss ~ -0.02 kg/day/animal
  * under high stocking + low grass allowance; gains up to +0.655 kg/day
@@ -31,6 +47,11 @@ const WEIGHT = {
  * with real calf/yearling growth rates.
  */
 export function expectedWeightForAge(cow: Cow): number {
+  // growthProgress goes from 0 (just born) to 1 (fully grown at
+  // maturityDays). frameFraction interpolates linearly from
+  // birthWeightFraction (a newborn is ~6.4% of its adult weight) up to
+  // 100% — so a cow halfway to maturity should weigh roughly halfway
+  // between its birth weight and its mature weight.
   const growthProgress = Math.min(1, cow.ageDays / WEIGHT.maturityDays);
   const frameFraction =
     WEIGHT.birthWeightFraction + (1 - WEIGHT.birthWeightFraction) * growthProgress;
@@ -54,6 +75,11 @@ export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: numb
   const hourlyIntakeNeededKg = (cow.weightKg * DAILY_INTAKE_FRACTION_OF_BODYWEIGHT) / 24;
 
   const forageQualityFactor = 1; // placeholder until grass "quality" (vs. quantity) exists
+
+  // intakeRatio: 1.0 means "got exactly what it needed", 0.5 means "got
+  // half", 0 means "got nothing". availableForageKgThisHour comes from
+  // grazing.ts's forageReceivedPerCow — it already accounts for a
+  // grazed-down paddock limiting what this cow could actually eat.
   const intakeRatio =
     hourlyIntakeNeededKg > 0 ? availableForageKgThisHour / hourlyIntakeNeededKg : 1;
 
@@ -68,11 +94,18 @@ export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: numb
         clamp(intakeRatio, 0, 1)
       : 0;
 
-  // Condition: gained above maintenance, lost below it. Intake below need
-  // produces weight loss automatically — no separate starvation system.
+  // Condition: gained above maintenance, lost below it. maintenanceFraction
+  // (0.75) is the breakeven point — eating 75% of what's needed just covers
+  // upkeep with no weight change; eating more puts on condition, eating
+  // less burns it off. Intake below need produces weight loss automatically
+  // — no separate "starvation" system needed.
   const nutritionBalance = (intakeRatio - WEIGHT.maintenanceFraction) / (1 - WEIGHT.maintenanceFraction);
   const conditionKgPerDay = clamp(nutritionBalance, -1, 1) * WEIGHT.conditionRateKgPerDay;
 
+  // Total weight = frame growth + condition change, applied for 1/24th of
+  // a day (this function runs once per simulated hour). Clamped to a
+  // sensible band around expected weight so a single terrible hour can't
+  // send weight to zero or an amazing hour double it overnight.
   const weightKg = clamp(
     cow.weightKg + (frameGrowthKgPerDay + conditionKgPerDay) / 24,
     expectedWeightKg * WEIGHT.minWeightFractionOfExpected,
@@ -91,18 +124,28 @@ export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: numb
  */
 export function updateCowConditionOneHour(cow: Cow): Cow {
   const expectedWeightKg = expectedWeightForAge(cow);
+  // weightRatio: 1.0 = exactly on target for its age, > 1 = heavier than
+  // expected (well-fed), < 1 = lighter than expected (underfed).
   const weightRatio = expectedWeightKg > 0 ? cow.weightKg / expectedWeightKg : 1;
 
   // BCS 5 at expected weight; ~2 at 25% underweight, ~7 at 20% over.
   const bodyConditionScore = clamp(5 + (weightRatio - 1) * 12, 1, 9);
 
-  // Health drifts toward what body condition implies (BCS 5+ = fully healthy).
+  // Health doesn't jump instantly to match body condition — it drifts
+  // toward it a small step each hour, same slow-catch-up pattern as soil
+  // health in soil.ts. BCS 5 or above counts as "fully healthy" (targetHealth
+  // caps at 1); below that, health trails downward over time.
   const targetHealth = clamp(bodyConditionScore / 5, 0, 1);
   const health = clamp(cow.health + (targetHealth - cow.health) * 0.004, 0, 1);
 
   return { ...cow, bodyConditionScore, health };
 }
 
+/**
+ * Advances age by one hour (1/24 of a day) and moves the cow through its
+ * life-stage labels (calf -> juvenile -> breeding -> old) once it crosses
+ * each age threshold. Also advances pregnancy day count, if pregnant.
+ */
 export function ageCowOneHour(cow: Cow): Cow {
   const ageDays = cow.ageDays + 1 / 24;
   let status = cow.status;
@@ -142,6 +185,13 @@ export function checkBreedingOneHour(
 
   if (!isEligible) return cow;
 
+  // The three multipliers combine into one hourly probability: a
+  // well-fed, healthy, naturally fertile cow has the best odds each hour.
+  // The "/ (365 * 24 * 0.3)" scaling means a cow with all modifiers at 1.0
+  // takes roughly 0.3 years on average to conceive — not a hard deadline,
+  // just how the odds are spread out over time. Poor nutrition (low
+  // bodyConditionScore) directly lowers this every single hour, which is
+  // the mechanical version of "poor pasture management reduces births."
   const nutritionModifier = clamp(cow.bodyConditionScore / 5, 0, 1.2);
   const healthModifier = cow.health;
   const hourlyProbability = (cow.fertility * healthModifier * nutritionModifier) / (365 * 24 * 0.3);
@@ -217,8 +267,14 @@ export function checkDeathOneHour(
 
   const rng = rngFor(farmSeed, simHour, `death:${cow.id}`);
 
+  // Each hour, roll for each possible cause of death independently. Only
+  // the FIRST one that hits (checked in this order) actually applies —
+  // it's rare for more than one to trigger the same hour anyway, since
+  // these are all small probabilities.
   let cause: "old_age" | "disease" | "injury" | "malnutrition" | null = null;
 
+  // Old age: once a cow is past oldAgeDays, the risk grows the further
+  // past it they get (excessYears increases the odds linearly).
   const oldAgeDays = AGE_THRESHOLDS_DAYS.breedingToOld + 365 * 4;
   if (cow.status === "old" && cow.ageDays > oldAgeDays) {
     const excessYears = (cow.ageDays - oldAgeDays) / 365;

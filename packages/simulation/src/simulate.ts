@@ -12,6 +12,26 @@ import {
 import { depositManureOneHour, updateBiodiversityOneHour, updateSoilHealthOneHour } from "./soil";
 import { generateWeather, seasonForDay } from "./weather";
 
+// ---------------------------------------------------------------------------
+// PLAIN-ENGLISH OVERVIEW
+//
+// This is the file that actually calls everything in grass.ts, grazing.ts,
+// soil.ts, and cows.ts, in order, once per simulated hour. If you want to
+// know "what happens during one tick of the game clock", this is the file
+// that answers it end to end. Roughly:
+//   1. Figure out the weather and season for this hour.
+//   2. For each PADDOCK, work out how much the herd there eats and what
+//      that does to the land (grazePaddockOneHour).
+//   3. For each CELL, on top of that grazing outcome: let grass regrow,
+//      update soil health/nutrients/biodiversity.
+//   4. For each COW: update weight/condition from what it ate, age it by
+//      an hour, check for breeding/birth/death.
+// Every function called here is "pure" — it takes today's state and
+// returns tomorrow's state, without secretly reading the clock or reaching
+// into a database. That's what makes it safe to replay the exact same
+// farm-seed forward and always get the exact same result.
+// ---------------------------------------------------------------------------
+
 export type SimulationResult = {
   farm: FarmState;
   events: FarmEvent[];
@@ -38,6 +58,8 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
   const simHour = farm.simHour;
   const isStartOfDay = simHour % 24 === 0;
 
+  // Weather only gets rolled once per day (at hour 0, 24, 48, ...) — every
+  // other hour of the day just reuses that same day's weather reading.
   const weatherToday = isStartOfDay ? generateWeather(farm.seed, simHour) : farm.weatherToday;
   const season = seasonForDay(Math.floor(simHour / 24));
   if (season !== farm.season) {
@@ -64,6 +86,10 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
 
   // --- Grazing: one pass per paddock, distributing herd demand across
   // that paddock's cells and splitting intake evenly back across the herd. ---
+  // We loop paddock-by-paddock (not cell-by-cell) on purpose: cows roam a
+  // whole paddock, and grazePaddockOneHour needs to see the WHOLE herd in
+  // a paddock at once to correctly figure out how much they collectively
+  // eat. Doing this per-cell instead was the original bug — see grazing.ts.
   const grazingOutcomeByCellId = new Map<string, CellGrazingOutcome>();
   const forageAvailablePerCow = new Map<string, number>();
 
@@ -113,6 +139,10 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
   });
 
   // --- Cows: weight, condition, aging, breeding, birth, death ---
+  // Each live cow runs through the same pipeline in order: how much it ate
+  // this hour (looked up from forageAvailablePerCow, computed above by the
+  // grazing pass) drives its weight, which drives its condition, then it
+  // ages by an hour and gets checked for breeding/birth/death.
   const newCalves: Cow[] = [];
   const updatedCows: Cow[] = farm.cows.map((cow) => {
     if (cow.status === "dead" || cow.status === "sold" || cow.status === "slaughtered") {

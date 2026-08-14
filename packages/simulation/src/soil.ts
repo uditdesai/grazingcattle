@@ -1,5 +1,20 @@
 import type { Cow, PastureCell } from "@grazingcattle/game-types";
 
+// ---------------------------------------------------------------------------
+// PLAIN-ENGLISH OVERVIEW
+//
+// Three slow-moving stats live here, all 0-1:
+//   - soilHealth: reacts fastest of the three. Every hour it drifts a
+//     little toward a "target" value that depends on how hard the land was
+//     just grazed (see targetSoilHealthForDepletion) — moderate grazing is
+//     actually the BEST target, not resting completely.
+//   - nutrients: rises when cows graze (their manure returns nutrients to
+//     the soil) and slowly falls otherwise (the growing grass uses them up).
+//   - biodiversity: the slowest of all three, rewards staying in a
+//     "healthy range" of grazing intensity over a long time — neither
+//     hammered nor completely untouched.
+// ---------------------------------------------------------------------------
+
 /** Fraction of grazed dry matter that returns to the cell as manure nutrients. */
 const MANURE_NUTRIENT_RETURN_FACTOR = 0.35;
 /** How much a full manure deposit raises the 0–1 nutrients bucket. */
@@ -26,6 +41,13 @@ const SOIL_HEALTH_DRIFT_RATE_PER_HOUR = 0.0006;
  * well-managed moderate grazing, so resting is not strictly dominant.
  */
 function targetSoilHealthForDepletion(depletion: number): number {
+  // Plain English: depletion = 0 means "untouched, full grass". depletion =
+  // 0.3 means "grazed down to 70% of max" — that's the sweet spot, target
+  // = 1.0 (best possible). Move away from 0.3 in EITHER direction (too
+  // little disturbance OR too much) and the target drops. The drop-off is
+  // gentler toward "less grazed" (spread 0.5) than toward "more grazed"
+  // (spread 0.25) — overgrazing punishes soil health faster than resting
+  // does, which is the asymmetry described above.
   const moderateUsePeak = 0.3;
   const spread = depletion < moderateUsePeak ? 0.5 : 0.25;
   const distance = (depletion - moderateUsePeak) / spread;
@@ -34,6 +56,9 @@ function targetSoilHealthForDepletion(depletion: number): number {
 
 export function updateSoilHealthOneHour(cell: PastureCell, depletion: number): PastureCell {
   const target = targetSoilHealthForDepletion(depletion);
+  // Don't jump straight to the target — nudge soilHealth a small step
+  // toward it each hour. This is why soil health changes gradually over
+  // weeks/months even though grazing intensity can change hour to hour.
   const soilHealth =
     cell.soilHealth + (target - cell.soilHealth) * SOIL_HEALTH_DRIFT_RATE_PER_HOUR;
 
@@ -50,6 +75,8 @@ export function depositManureOneHour(
   biomassRemovedKgHa: number,
   simHour: number,
 ): PastureCell {
+  // The more grass cows ate here this hour, the more manure they leave
+  // behind — nutrients cycle back into the soil rather than just vanishing.
   const nutrientsFromManure =
     biomassRemovedKgHa * MANURE_NUTRIENT_RETURN_FACTOR * NUTRIENT_DEPOSIT_SCALE;
 
@@ -73,6 +100,10 @@ export function depositManureOneHour(
 const BIODIVERSITY_DRIFT_RATE_PER_HOUR = 0.00003;
 
 export function updateBiodiversityOneHour(cell: PastureCell, depletion: number): PastureCell {
+  // Same "sweet spot" idea as soil health, but simpler: is this hour's
+  // grazing intensity inside a healthy window (not too light, not too
+  // heavy)? If so, biodiversity can climb all the way up to match soil
+  // health; if not, it's capped lower even if soil health itself is fine.
   const inHealthyRange = depletion > 0.15 && depletion < 0.55;
   const target = cell.soilHealth * (inHealthyRange ? 1 : 0.6);
 
