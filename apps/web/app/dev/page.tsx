@@ -1,22 +1,53 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { Cow, FarmEvent, FarmState, Paddock } from "@grazingcattle/game-types";
-import type { ScenarioName } from "@grazingcattle/simulation";
 
-const SCENARIOS: ScenarioName[] = ["sustainable", "overstocked", "rotational"];
 const MAX_EVENTS_SHOWN = 50;
 
-function isLive(cow: Cow): boolean {
+const isLive = (cow: Cow): boolean => {
   return cow.status !== "dead" && cow.status !== "sold" && cow.status !== "slaughtered";
-}
+};
 
-function mean(values: number[]): number {
+const mean = (values: number[]): number => {
   if (values.length === 0) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
-}
+};
 
-function paddockStats(farm: FarmState, paddock: Paddock) {
+// Explicit colors on every element here rather than relying on inherited
+// defaults — globals.css is now always-light (see its own comment), but
+// pinning colors locally means this page doesn't silently break again if
+// that ever changes.
+const tableStyle: CSSProperties = {
+  borderCollapse: "collapse",
+  marginBottom: 24,
+  fontSize: 14,
+  color: "#111",
+};
+const thStyle: CSSProperties = {
+  border: "1px solid #999",
+  padding: "8px 14px",
+  textAlign: "left",
+  background: "#e8e8e8",
+  color: "#111",
+};
+const tdStyle: CSSProperties = {
+  border: "1px solid #ccc",
+  padding: "8px 14px",
+  color: "#111",
+};
+const buttonStyle: CSSProperties = {
+  border: "1px solid #888",
+  borderRadius: 4,
+  padding: "6px 12px",
+  background: "#f5f5f5",
+  color: "#111",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: "inherit",
+};
+
+const paddockStats = (farm: FarmState, paddock: Paddock) => {
   const cellIds = new Set(paddock.cellIds);
   const cells = farm.cells.filter((c) => cellIds.has(c.id));
   const cows = farm.cows.filter((c) => isLive(c) && c.currentPaddockId === paddock.id);
@@ -26,12 +57,11 @@ function paddockStats(farm: FarmState, paddock: Paddock) {
     meanSoil: mean(cells.map((c) => c.soilHealth)),
     meanRoots: mean(cells.map((c) => c.rootHealth)),
   };
-}
+};
 
 export default function DevPage() {
   const [farm, setFarm] = useState<FarmState | null>(null);
   const [events, setEvents] = useState<FarmEvent[]>([]);
-  const [scenario, setScenario] = useState<ScenarioName>("sustainable");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [targetPaddockId, setTargetPaddockId] = useState<string>("");
@@ -45,14 +75,14 @@ export default function DevPage() {
   // seen the other's result yet), silently discarding one of the advances.
   const isRequestInFlightRef = useRef(false);
 
-  async function loadScenario(name: ScenarioName) {
+  const loadFarm = async () => {
     if (isRequestInFlightRef.current) return;
     isRequestInFlightRef.current = true;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/dev/scenario?name=${name}`);
-      if (!res.ok) throw new Error(`Failed to load scenario: ${res.status}`);
+      const res = await fetch("/api/dev/scenario");
+      if (!res.ok) throw new Error(`Failed to load farm: ${res.status}`);
       const data: { farm: FarmState } = await res.json();
       setFarm(data.farm);
       setEvents([]);
@@ -63,9 +93,9 @@ export default function DevPage() {
       isRequestInFlightRef.current = false;
       setLoading(false);
     }
-  }
+  };
 
-  async function advance(hours: number) {
+  const advance = async (hours: number) => {
     if (!farm || isRequestInFlightRef.current) return;
     isRequestInFlightRef.current = true;
     setLoading(true);
@@ -86,9 +116,9 @@ export default function DevPage() {
       isRequestInFlightRef.current = false;
       setLoading(false);
     }
-  }
+  };
 
-  function moveHerdToPaddock() {
+  const moveHerdToPaddock = () => {
     if (!farm || !targetPaddockId) return;
     setFarm({
       ...farm,
@@ -96,9 +126,9 @@ export default function DevPage() {
         isLive(cow) ? { ...cow, currentPaddockId: targetPaddockId } : cow,
       ),
     });
-  }
+  };
 
-  function sellCow(cowId: string) {
+  const sellCow = (cowId: string) => {
     if (!farm) return;
     setFarm({
       ...farm,
@@ -108,38 +138,28 @@ export default function DevPage() {
           : cow,
       ),
     });
-  }
+  };
 
   const liveCows = farm?.cows.filter(isLive) ?? [];
   const day = farm ? Math.floor(farm.simHour / 24) : 0;
 
   return (
-    <main style={{ fontFamily: "monospace", padding: 24, maxWidth: 1000 }}>
+    <main style={{ fontFamily: "monospace", padding: 24, maxWidth: 1100 }}>
       <h1>Grazing Cattle — dev screen</h1>
-      <p style={{ color: "#666" }}>
+      <p style={{ color: "#555" }}>
         Not the real UI. Prints raw simulation state so we can see whether the sim is doing
         something interesting before any graphics exist.
       </p>
 
       <section style={{ marginBottom: 16 }}>
-        <label>
-          Scenario:{" "}
-          <select value={scenario} onChange={(e) => setScenario(e.target.value as ScenarioName)}>
-            {SCENARIOS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>{" "}
-        <button onClick={() => loadScenario(scenario)} disabled={loading}>
-          Load / Reset
+        <button style={buttonStyle} onClick={loadFarm} disabled={loading}>
+          {farm ? "New Farm (reset)" : "Start Farm"}
         </button>
       </section>
 
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
 
-      {!farm && <p>Load a scenario to begin.</p>}
+      {!farm && <p>Click &quot;Start Farm&quot; to begin.</p>}
 
       {farm && (
         <>
@@ -153,14 +173,14 @@ export default function DevPage() {
             Herd: {liveCows.length} live · ${farm.moneyUsd.toFixed(0)}
           </section>
 
-          <section style={{ marginBottom: 16 }}>
-            <button onClick={() => advance(24)} disabled={loading}>
+          <section style={{ marginBottom: 16, display: "flex", gap: 8 }}>
+            <button style={buttonStyle} onClick={() => advance(24)} disabled={loading}>
               +1 day
-            </button>{" "}
-            <button onClick={() => advance(24 * 7)} disabled={loading}>
+            </button>
+            <button style={buttonStyle} onClick={() => advance(24 * 7)} disabled={loading}>
               +7 days
-            </button>{" "}
-            <button onClick={() => advance(24 * 30)} disabled={loading}>
+            </button>
+            <button style={buttonStyle} onClick={() => advance(24 * 30)} disabled={loading}>
               +30 days
             </button>
           </section>
@@ -174,18 +194,20 @@ export default function DevPage() {
                 </option>
               ))}
             </select>{" "}
-            <button onClick={moveHerdToPaddock}>Move</button>
+            <button style={buttonStyle} onClick={moveHerdToPaddock}>
+              Move
+            </button>
           </section>
 
           <h2>Paddocks</h2>
-          <table border={1} cellPadding={4} style={{ borderCollapse: "collapse", marginBottom: 16 }}>
+          <table style={tableStyle}>
             <thead>
               <tr>
-                <th>Paddock</th>
-                <th>Cows</th>
-                <th>Mean grass (kg/ha)</th>
-                <th>Mean soil health</th>
-                <th>Mean root health</th>
+                <th style={thStyle}>Paddock</th>
+                <th style={thStyle}>Cows</th>
+                <th style={thStyle}>Mean grass (kg/ha)</th>
+                <th style={thStyle}>Mean soil health</th>
+                <th style={thStyle}>Mean root health</th>
               </tr>
             </thead>
             <tbody>
@@ -193,11 +215,11 @@ export default function DevPage() {
                 const stats = paddockStats(farm, p);
                 return (
                   <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td>{stats.cowCount}</td>
-                    <td>{stats.meanGrass.toFixed(0)}</td>
-                    <td>{stats.meanSoil.toFixed(2)}</td>
-                    <td>{stats.meanRoots.toFixed(2)}</td>
+                    <td style={tdStyle}>{p.name}</td>
+                    <td style={tdStyle}>{stats.cowCount}</td>
+                    <td style={tdStyle}>{stats.meanGrass.toFixed(0)}</td>
+                    <td style={tdStyle}>{stats.meanSoil.toFixed(2)}</td>
+                    <td style={tdStyle}>{stats.meanRoots.toFixed(2)}</td>
                   </tr>
                 );
               })}
@@ -205,33 +227,35 @@ export default function DevPage() {
           </table>
 
           <h2>Cows ({liveCows.length})</h2>
-          <table border={1} cellPadding={4} style={{ borderCollapse: "collapse", marginBottom: 16 }}>
+          <table style={tableStyle}>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Status</th>
-                <th>Sex</th>
-                <th>Age (yr)</th>
-                <th>Weight (kg)</th>
-                <th>BCS</th>
-                <th>Health</th>
-                <th>Paddock</th>
-                <th></th>
+                <th style={thStyle}>ID</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Sex</th>
+                <th style={thStyle}>Age (yr)</th>
+                <th style={thStyle}>Weight (kg)</th>
+                <th style={thStyle}>BCS</th>
+                <th style={thStyle}>Health</th>
+                <th style={thStyle}>Paddock</th>
+                <th style={thStyle}></th>
               </tr>
             </thead>
             <tbody>
               {liveCows.map((cow) => (
                 <tr key={cow.id}>
-                  <td>{cow.id}</td>
-                  <td>{cow.status}</td>
-                  <td>{cow.sex}</td>
-                  <td>{(cow.ageDays / 365).toFixed(1)}</td>
-                  <td>{cow.weightKg.toFixed(0)}</td>
-                  <td>{cow.bodyConditionScore.toFixed(1)}</td>
-                  <td>{cow.health.toFixed(2)}</td>
-                  <td>{cow.currentPaddockId}</td>
-                  <td>
-                    <button onClick={() => sellCow(cow.id)}>Sell</button>
+                  <td style={tdStyle}>{cow.id}</td>
+                  <td style={tdStyle}>{cow.status}</td>
+                  <td style={tdStyle}>{cow.sex}</td>
+                  <td style={tdStyle}>{(cow.ageDays / 365).toFixed(1)}</td>
+                  <td style={tdStyle}>{cow.weightKg.toFixed(0)}</td>
+                  <td style={tdStyle}>{cow.bodyConditionScore.toFixed(1)}</td>
+                  <td style={tdStyle}>{cow.health.toFixed(2)}</td>
+                  <td style={tdStyle}>{cow.currentPaddockId}</td>
+                  <td style={tdStyle}>
+                    <button style={buttonStyle} onClick={() => sellCow(cow.id)}>
+                      Sell
+                    </button>
                   </td>
                 </tr>
               ))}
