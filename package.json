@@ -1,0 +1,13 @@
+{
+  "name": "grazingcattle",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "sim": "pnpm --filter @grazingcattle/simulation run sim",
+    "dev": "pnpm --filter @grazingcattle/web run dev",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "packageManager": "pnpm@11.21.0"
+}
