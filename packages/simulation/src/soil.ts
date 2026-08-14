@@ -16,22 +16,24 @@ const NUTRIENT_BASE_DECAY_PER_HOUR = 0.00005;
  */
 const SOIL_HEALTH_DRIFT_RATE_PER_HOUR = 0.0006;
 
-/** utilization (0–1, this hour) -> the soil-health level it pulls toward. */
-function targetSoilHealthForUtilization(utilization: number): number {
-  // Peaks around utilization ~0.3 (moderate use), degrades toward 0 as
-  // utilization approaches 1, and full rest (0) drifts toward a good-but-
-  // not-maximal target — rest heals degraded land but doesn't outperform
-  // well-managed moderate grazing (avoids "rest is strictly dominant").
+/**
+ * depletion (0 = full standing crop, 1 = bare) -> the soil-health level it
+ * pulls toward.
+ *
+ * Asymmetric bell peaking at moderate use: full rest lands at a good-but-
+ * not-best 0.84, moderate grazing at 1.0, and heavy use falls away sharply.
+ * The asymmetry is the point — rest heals degraded land but never beats
+ * well-managed moderate grazing, so resting is not strictly dominant.
+ */
+function targetSoilHealthForDepletion(depletion: number): number {
   const moderateUsePeak = 0.3;
-  const spread = 0.35;
-  const distance = (utilization - moderateUsePeak) / spread;
-  const bellCurve = Math.exp(-0.5 * distance * distance);
-  const restBaseline = 0.75;
-  return restBaseline + (1 - restBaseline) * bellCurve;
+  const spread = depletion < moderateUsePeak ? 0.5 : 0.25;
+  const distance = (depletion - moderateUsePeak) / spread;
+  return Math.exp(-0.5 * distance * distance);
 }
 
-export function updateSoilHealthOneHour(cell: PastureCell, utilization: number): PastureCell {
-  const target = targetSoilHealthForUtilization(utilization);
+export function updateSoilHealthOneHour(cell: PastureCell, depletion: number): PastureCell {
+  const target = targetSoilHealthForDepletion(depletion);
   const soilHealth =
     cell.soilHealth + (target - cell.soilHealth) * SOIL_HEALTH_DRIFT_RATE_PER_HOUR;
 
@@ -70,8 +72,8 @@ export function depositManureOneHour(
  */
 const BIODIVERSITY_DRIFT_RATE_PER_HOUR = 0.00003;
 
-export function updateBiodiversityOneHour(cell: PastureCell, utilization: number): PastureCell {
-  const inHealthyRange = utilization > 0.1 && utilization < 0.6;
+export function updateBiodiversityOneHour(cell: PastureCell, depletion: number): PastureCell {
+  const inHealthyRange = depletion > 0.15 && depletion < 0.55;
   const target = cell.soilHealth * (inHealthyRange ? 1 : 0.6);
 
   const biodiversity =

@@ -19,6 +19,8 @@ export type Cow = {
   ageDays: number;
   /** Live body weight, kg. */
   weightKg: number;
+  /** Frame size: the weight this animal reaches at maturity in good condition, kg. */
+  matureWeightKg: number;
   /** Standard 1–9 body condition score (1 = emaciated, 9 = obese; ~5 is ideal). */
   bodyConditionScore: number;
 

@@ -1,6 +1,6 @@
 import type { Cow, FarmEvent, FarmState, PastureCell } from "@grazingcattle/game-types";
 import { growGrassOneHour, updateSoilMoistureOneHour } from "./grass";
-import { grazeOneCellOneHour } from "./grazing";
+import { grazePaddockOneHour, type CellGrazingOutcome } from "./grazing";
 import {
   ageCowOneHour,
   checkBirthOneHour,
@@ -50,44 +50,64 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
     });
   }
 
-  // Group live cows by their current paddock so grazing/manure can be
-  // computed per-cell without repeatedly filtering the whole herd.
+  // Group live cows by their current paddock so grazing is computed once
+  // per paddock, not once per cell.
   const liveCows = farm.cows.filter(
     (cow) => cow.status !== "dead" && cow.status !== "sold" && cow.status !== "slaughtered",
   );
   const cowsByPaddockId = groupCowsByPaddock(liveCows, farm.paddocks);
-
   const cellsById = new Map(farm.cells.map((cell) => [cell.id, cell]));
   const cellIdToPaddockId = new Map<string, string>();
   for (const paddock of farm.paddocks) {
     for (const cellId of paddock.cellIds) cellIdToPaddockId.set(cellId, paddock.id);
   }
 
-  // --- Cells: moisture, grazing, growth, soil, manure, biodiversity ---
+  // --- Grazing: one pass per paddock, distributing herd demand across
+  // that paddock's cells and splitting intake evenly back across the herd. ---
+  const grazingOutcomeByCellId = new Map<string, CellGrazingOutcome>();
   const forageAvailablePerCow = new Map<string, number>();
+
+  for (const paddock of farm.paddocks) {
+    const cellsInPaddock = paddock.cellIds
+      .map((cellId) => cellsById.get(cellId))
+      .filter((cell): cell is PastureCell => cell !== undefined)
+      .map((cell) => updateSoilMoistureOneHour(cell, weatherToday));
+
+    const cowsInPaddock = cowsByPaddockId.get(paddock.id) ?? [];
+    const paddockResult = grazePaddockOneHour(cellsInPaddock, cowsInPaddock, simHour);
+
+    for (const outcome of paddockResult.cells) {
+      grazingOutcomeByCellId.set(outcome.cell.id, outcome);
+    }
+    for (const [cowId, forage] of paddockResult.forageReceivedPerCow) {
+      forageAvailablePerCow.set(cowId, forage);
+    }
+  }
+
+  // --- Cells: growth, soil health, manure, biodiversity applied on top of
+  // this hour's grazing outcome (or passive rest for cells outside any
+  // paddock, e.g. unfenced farmland). ---
   const updatedCells: PastureCell[] = farm.cells.map((cell) => {
-    let updatedCell = updateSoilMoistureOneHour(cell, weatherToday);
-
     const paddockId = cellIdToPaddockId.get(cell.id);
-    const cowsInCell = paddockId ? (cowsByPaddockId.get(paddockId) ?? []) : [];
+    let outcome = paddockId ? grazingOutcomeByCellId.get(cell.id) : undefined;
 
-    const grazingResult = grazeOneCellOneHour(updatedCell, cowsInCell, simHour);
-    updatedCell = grazingResult.cell;
-
-    if (cowsInCell.length > 0) {
-      const forageEach = grazingResult.biomassRemovedKgHa / cowsInCell.length;
-      for (const cow of cowsInCell) forageAvailablePerCow.set(cow.id, forageEach);
+    if (!outcome) {
+      // Cell outside any paddock (unfenced land): run it through the same
+      // grazing pass with no herd so it rests under identical rules.
+      const [restedOutcome] = grazePaddockOneHour(
+        [updateSoilMoistureOneHour(cell, weatherToday)],
+        [],
+        simHour,
+      ).cells;
+      outcome = restedOutcome!;
     }
 
-    updatedCell = growGrassOneHour(updatedCell, weatherToday);
-    updatedCell = updateSoilHealthOneHour(updatedCell, grazingResult.utilization);
-    updatedCell = depositManureOneHour(
-      updatedCell,
-      cowsInCell,
-      grazingResult.biomassRemovedKgHa,
-      simHour,
-    );
-    updatedCell = updateBiodiversityOneHour(updatedCell, grazingResult.utilization);
+    const cowsInCell = paddockId ? (cowsByPaddockId.get(paddockId) ?? []) : [];
+
+    let updatedCell = growGrassOneHour(outcome.cell, weatherToday);
+    updatedCell = updateSoilHealthOneHour(updatedCell, outcome.depletion);
+    updatedCell = depositManureOneHour(updatedCell, cowsInCell, outcome.biomassRemovedKgHa, simHour);
+    updatedCell = updateBiodiversityOneHour(updatedCell, outcome.depletion);
 
     return updatedCell;
   });
@@ -99,11 +119,10 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
       return cow;
     }
 
-    const previousWeightKg = cow.weightKg;
     const availableForage = forageAvailablePerCow.get(cow.id) ?? 0;
 
     let updatedCow = updateCowWeightOneHour(cow, availableForage);
-    updatedCow = updateCowConditionOneHour(updatedCow, previousWeightKg);
+    updatedCow = updateCowConditionOneHour(updatedCow);
     updatedCow = ageCowOneHour(updatedCow);
     updatedCow = checkBreedingOneHour(updatedCow, farm.seed, simHour);
 

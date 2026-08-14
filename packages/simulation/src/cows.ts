@@ -8,11 +8,34 @@ import { rngFor } from "./rng";
  * under good spring/summer conditions.
  */
 const WEIGHT = {
-  maxGainKgPerDay: 0.655,
-  maxLossKgPerDay: -0.6,
-  /** Baseline daily maintenance cost as a fraction of intake needed. */
-  maintenanceFraction: 0.85,
+  /**
+   * Fraction of full intake that merely covers maintenance. Below this the
+   * cow loses condition, above it gains.
+   */
+  maintenanceFraction: 0.75,
+  /** How fast condition (fat cover, not frame) moves at full over/under-feed, kg/day. */
+  conditionRateKgPerDay: 0.5,
+  /** Weight is held within this band around age-expected weight. */
+  minWeightFractionOfExpected: 0.45,
+  maxWeightFractionOfExpected: 1.2,
+  /** Age at which frame growth is complete. */
+  maturityDays: 730,
+  /** Birth weight as a fraction of mature weight. */
+  birthWeightFraction: 0.064,
 };
+
+/**
+ * The weight a well-fed animal of this age and frame should carry. Frame
+ * grows linearly from birth weight to mature weight over `maturityDays`,
+ * which yields ~0.7 kg/day of skeletal growth for a 550 kg frame — in line
+ * with real calf/yearling growth rates.
+ */
+export function expectedWeightForAge(cow: Cow): number {
+  const growthProgress = Math.min(1, cow.ageDays / WEIGHT.maturityDays);
+  const frameFraction =
+    WEIGHT.birthWeightFraction + (1 - WEIGHT.birthWeightFraction) * growthProgress;
+  return cow.matureWeightKg * frameFraction;
+}
 
 const AGE_THRESHOLDS_DAYS = {
   calfToJuvenile: 90,
@@ -28,42 +51,54 @@ const GESTATION_DAYS = 283;
  * what its paddock could provide this hour (computed by the grazing step).
  */
 export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: number): Cow {
-  const dailyIntakeNeededKg = cow.weightKg * DAILY_INTAKE_FRACTION_OF_BODYWEIGHT;
-  const hourlyIntakeNeededKg = dailyIntakeNeededKg / 24;
+  const hourlyIntakeNeededKg = (cow.weightKg * DAILY_INTAKE_FRACTION_OF_BODYWEIGHT) / 24;
 
   const forageQualityFactor = 1; // placeholder until grass "quality" (vs. quantity) exists
   const intakeRatio =
     hourlyIntakeNeededKg > 0 ? availableForageKgThisHour / hourlyIntakeNeededKg : 1;
 
-  // No availableForage below need => negative growth automatically, no
-  // separate "starvation" system required (per the context doc's approach).
-  const dailyGainKg = WEIGHT.maxGainKgPerDay * forageQualityFactor * intakeRatio
-    - WEIGHT.maxGainKgPerDay * WEIGHT.maintenanceFraction;
-  const clampedDailyGainKg = Math.max(WEIGHT.maxLossKgPerDay, Math.min(WEIGHT.maxGainKgPerDay, dailyGainKg));
+  const expectedWeightKg = expectedWeightForAge(cow);
 
-  const weightKg = Math.max(0, cow.weightKg + clampedDailyGainKg / 24);
+  // Frame growth: skeletal growth follows the age trajectory, but only to
+  // the extent the animal is actually fed. A mature cow has no frame growth
+  // left, so good feeding shows up as condition instead.
+  const frameGrowthKgPerDay =
+    cow.ageDays < WEIGHT.maturityDays
+      ? ((cow.matureWeightKg * (1 - WEIGHT.birthWeightFraction)) / WEIGHT.maturityDays) *
+        clamp(intakeRatio, 0, 1)
+      : 0;
+
+  // Condition: gained above maintenance, lost below it. Intake below need
+  // produces weight loss automatically — no separate starvation system.
+  const nutritionBalance = (intakeRatio - WEIGHT.maintenanceFraction) / (1 - WEIGHT.maintenanceFraction);
+  const conditionKgPerDay = clamp(nutritionBalance, -1, 1) * WEIGHT.conditionRateKgPerDay;
+
+  const weightKg = clamp(
+    cow.weightKg + (frameGrowthKgPerDay + conditionKgPerDay) / 24,
+    expectedWeightKg * WEIGHT.minWeightFractionOfExpected,
+    expectedWeightKg * WEIGHT.maxWeightFractionOfExpected,
+  );
 
   return { ...cow, weightKg };
 }
 
 /**
- * Body condition score (1-9) and health (0-1) both track weight trend
- * slowly, rather than being independently simulated - weight is the
- * ground truth signal for nutrition status.
+ * Body condition and health are DERIVED from how the animal's weight
+ * compares to what its age and frame call for — not integrated from the
+ * weight trend, which let condition drift without bound in either
+ * direction (obese cows on good pasture, permanently emaciated but immortal
+ * cows on bare ground).
  */
-export function updateCowConditionOneHour(cow: Cow, previousWeightKg: number): Cow {
-  const weightDeltaKg = cow.weightKg - previousWeightKg;
-  const normalizedTrend = weightDeltaKg / 0.03; // hourly delta scale
+export function updateCowConditionOneHour(cow: Cow): Cow {
+  const expectedWeightKg = expectedWeightForAge(cow);
+  const weightRatio = expectedWeightKg > 0 ? cow.weightKg / expectedWeightKg : 1;
 
-  const bodyConditionScore = clamp(
-    cow.bodyConditionScore + normalizedTrend * 0.002,
-    1,
-    9,
-  );
+  // BCS 5 at expected weight; ~2 at 25% underweight, ~7 at 20% over.
+  const bodyConditionScore = clamp(5 + (weightRatio - 1) * 12, 1, 9);
 
-  // Health drifts toward what body condition implies (BCS 5 = fully healthy).
+  // Health drifts toward what body condition implies (BCS 5+ = fully healthy).
   const targetHealth = clamp(bodyConditionScore / 5, 0, 1);
-  const health = clamp(cow.health + (targetHealth - cow.health) * 0.002, 0, 1);
+  const health = clamp(cow.health + (targetHealth - cow.health) * 0.004, 0, 1);
 
   return { ...cow, bodyConditionScore, health };
 }
@@ -141,7 +176,8 @@ export function checkBirthOneHour(
     sex: rng.chance(0.5) ? "female" : "male",
     breed: mother.breed,
     ageDays: 0,
-    weightKg: 35,
+    matureWeightKg: mother.matureWeightKg,
+    weightKg: mother.matureWeightKg * 0.064,
     bodyConditionScore: 5,
     health: 0.9,
     fertility: 0.8,
@@ -189,8 +225,12 @@ export function checkDeathOneHour(
     if (rng.chance(0.0002 * (1 + excessYears))) cause = "old_age";
   }
 
-  if (!cause && cow.health < 0.2) {
-    if (rng.chance(0.001)) cause = "malnutrition";
+  // Emaciation kills. Keyed to body condition rather than the derived
+  // health value, so a chronically starving animal actually dies instead of
+  // sitting at a low score indefinitely. BCS 3 is thin; BCS 1 is terminal.
+  if (!cause && cow.bodyConditionScore < 3) {
+    const severity = 3 - cow.bodyConditionScore;
+    if (rng.chance(0.0004 * severity)) cause = "malnutrition";
   }
 
   if (!cause && rng.chance(0.000005)) {
