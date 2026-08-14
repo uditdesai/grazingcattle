@@ -1,2 +1,2 @@
-// Simulation engine entry point. Populated in Step 3.
-export {};
+export { simulateFarm } from "./simulate";
+export type { SimulationResult } from "./simulate";
