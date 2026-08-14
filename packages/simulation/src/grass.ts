@@ -51,11 +51,11 @@ const ROOT_ZONE_CAPACITY_MM = 120;
  * hot), the slower it grows. Below minGrowthTempC (2°C) it stops entirely —
  * that's winter dormancy.
  */
-function computeTemperatureFactor(temperatureC: number): number {
+const computeTemperatureFactor = (temperatureC: number): number => {
   if (temperatureC < GROWTH.minGrowthTempC) return 0;
   const delta = temperatureC - GROWTH.optimalTempC;
   return Math.exp(-GROWTH.tempSensitivity * delta * delta);
-}
+};
 
 /**
  * Soil moisture (0–1 bucket) limits growth below a comfortable threshold.
@@ -64,16 +64,16 @@ function computeTemperatureFactor(temperatureC: number): number {
  * at 1. Below that, growth is throttled proportionally — drier ground grows
  * grass more slowly, all else equal.
  */
-function computeMoistureFactor(soilMoisture: number): number {
+const computeMoistureFactor = (soilMoisture: number): number => {
   return Math.max(0, Math.min(1, soilMoisture / 0.6));
-}
+};
 
 /**
  * Advances one cell's grass biomass by one simulated hour of growth.
  * Does NOT apply grazing removal — that's grazing.ts's job, called
  * separately so the two effects stay independently testable.
  */
-export function growGrassOneHour(cell: PastureCell, weather: Weather): PastureCell {
+export const growGrassOneHour = (cell: PastureCell, weather: Weather): PastureCell => {
   const temperatureFactor = computeTemperatureFactor(weather.temperatureC);
   const moistureFactor = computeMoistureFactor(cell.soilMoisture);
 
@@ -101,13 +101,13 @@ export function growGrassOneHour(cell: PastureCell, weather: Weather): PastureCe
   );
 
   return { ...cell, grassBiomassKgHa };
-}
+};
 
 /**
  * Soil moisture bucket update: rain adds, a fixed evapotranspiration rate
  * drains it (higher in heat/sunlight). Simple, not a real water-balance model.
  */
-export function updateSoilMoistureOneHour(cell: PastureCell, weather: Weather): PastureCell {
+export const updateSoilMoistureOneHour = (cell: PastureCell, weather: Weather): PastureCell => {
   // Think of soilMoisture as a bucket (the "root zone") that fills with
   // rain and drains through evapotranspiration (water lost to sun/heat/
   // plants). This function just does that bucket math for one hour.
@@ -129,4 +129,4 @@ export function updateSoilMoistureOneHour(cell: PastureCell, weather: Weather): 
   );
 
   return { ...cell, soilMoisture };
-}
+};

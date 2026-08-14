@@ -11,11 +11,11 @@ export const SEASON_LENGTH_DAYS = YEAR_LENGTH_DAYS / 4;
 
 const SEASON_ORDER: Season[] = ["spring", "summer", "fall", "winter"];
 
-export function seasonForDay(dayIndex: number): Season {
+export const seasonForDay = (dayIndex: number): Season => {
   const dayOfYear = ((dayIndex % YEAR_LENGTH_DAYS) + YEAR_LENGTH_DAYS) % YEAR_LENGTH_DAYS;
   const seasonIndex = Math.floor(dayOfYear / SEASON_LENGTH_DAYS);
   return SEASON_ORDER[seasonIndex]!;
-}
+};
 
 type SeasonalBaseline = {
   temperatureC: { mean: number; stdDev: number };
@@ -55,7 +55,7 @@ const SEASONAL_BASELINES: Record<Season, SeasonalBaseline> = {
  * start-of-day hour (a multiple of 24) — the whole day shares one weather
  * reading, resolved once per day per the tick-frequency plan.
  */
-export function generateWeather(farmSeed: string, simHour: number): Weather {
+export const generateWeather = (farmSeed: string, simHour: number): Weather => {
   const dayIndex = Math.floor(simHour / 24);
   const season = seasonForDay(dayIndex);
   const baseline = SEASONAL_BASELINES[season];
@@ -72,4 +72,4 @@ export function generateWeather(farmSeed: string, simHour: number): Weather {
   );
 
   return { season, temperatureC, rainfallMm, sunlightHours };
-}
+};

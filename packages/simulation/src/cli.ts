@@ -4,7 +4,7 @@ import { simulateFarm } from "./simulate";
 
 const PADDOCK_SEQUENCE = ["paddock-1", "paddock-2", "paddock-3", "paddock-4"];
 
-function parseArgs(argv: string[]): { scenario: ScenarioName; days: number } {
+const parseArgs = (argv: string[]): { scenario: ScenarioName; days: number } => {
   let scenario: ScenarioName = "sustainable";
   let days = 180;
 
@@ -18,21 +18,21 @@ function parseArgs(argv: string[]): { scenario: ScenarioName; days: number } {
   }
 
   return { scenario, days };
-}
+};
 
-function mean(values: number[]): number {
+const mean = (values: number[]): number => {
   if (values.length === 0) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
-}
+};
 
-function summarizeEvents(events: FarmEvent[]): string {
+const summarizeEvents = (events: FarmEvent[]): string => {
   if (events.length === 0) return "";
   const counts = new Map<string, number>();
   for (const event of events) counts.set(event.type, (counts.get(event.type) ?? 0) + 1);
   return [...counts.entries()].map(([type, count]) => `${type}x${count}`).join(", ");
-}
+};
 
-function main(): void {
+const main = (): void => {
   const { scenario: scenarioName, days } = parseArgs(process.argv.slice(2));
   const scenario = buildScenario(scenarioName);
   let farm = scenario.farm;
@@ -92,6 +92,6 @@ function main(): void {
       ].join(" "),
     );
   }
-}
+};
 
 main();

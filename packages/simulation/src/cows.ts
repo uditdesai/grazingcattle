@@ -46,7 +46,7 @@ const WEIGHT = {
  * which yields ~0.7 kg/day of skeletal growth for a 550 kg frame — in line
  * with real calf/yearling growth rates.
  */
-export function expectedWeightForAge(cow: Cow): number {
+export const expectedWeightForAge = (cow: Cow): number => {
   // growthProgress goes from 0 (just born) to 1 (fully grown at
   // maturityDays). frameFraction interpolates linearly from
   // birthWeightFraction (a newborn is ~6.4% of its adult weight) up to
@@ -56,7 +56,7 @@ export function expectedWeightForAge(cow: Cow): number {
   const frameFraction =
     WEIGHT.birthWeightFraction + (1 - WEIGHT.birthWeightFraction) * growthProgress;
   return cow.matureWeightKg * frameFraction;
-}
+};
 
 const AGE_THRESHOLDS_DAYS = {
   calfToJuvenile: 90,
@@ -71,7 +71,7 @@ const GESTATION_DAYS = 283;
  * intake was actually available. availableForageKg is this cow's share of
  * what its paddock could provide this hour (computed by the grazing step).
  */
-export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: number): Cow {
+export const updateCowWeightOneHour = (cow: Cow, availableForageKgThisHour: number): Cow => {
   const hourlyIntakeNeededKg = (cow.weightKg * DAILY_INTAKE_FRACTION_OF_BODYWEIGHT) / 24;
 
   const forageQualityFactor = 1; // placeholder until grass "quality" (vs. quantity) exists
@@ -113,7 +113,7 @@ export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: numb
   );
 
   return { ...cow, weightKg };
-}
+};
 
 /**
  * Body condition and health are DERIVED from how the animal's weight
@@ -122,7 +122,7 @@ export function updateCowWeightOneHour(cow: Cow, availableForageKgThisHour: numb
  * direction (obese cows on good pasture, permanently emaciated but immortal
  * cows on bare ground).
  */
-export function updateCowConditionOneHour(cow: Cow): Cow {
+export const updateCowConditionOneHour = (cow: Cow): Cow => {
   const expectedWeightKg = expectedWeightForAge(cow);
   // weightRatio: 1.0 = exactly on target for its age, > 1 = heavier than
   // expected (well-fed), < 1 = lighter than expected (underfed).
@@ -139,14 +139,14 @@ export function updateCowConditionOneHour(cow: Cow): Cow {
   const health = clamp(cow.health + (targetHealth - cow.health) * 0.004, 0, 1);
 
   return { ...cow, bodyConditionScore, health };
-}
+};
 
 /**
  * Advances age by one hour (1/24 of a day) and moves the cow through its
  * life-stage labels (calf -> juvenile -> breeding -> old) once it crosses
  * each age threshold. Also advances pregnancy day count, if pregnant.
  */
-export function ageCowOneHour(cow: Cow): Cow {
+export const ageCowOneHour = (cow: Cow): Cow => {
   const ageDays = cow.ageDays + 1 / 24;
   let status = cow.status;
 
@@ -164,7 +164,7 @@ export function ageCowOneHour(cow: Cow): Cow {
   }
 
   return { ...cow, ageDays, status, pregnancyDays };
-}
+};
 
 /**
  * Checks whether a mature, healthy female becomes pregnant this hour.
@@ -172,11 +172,7 @@ export function ageCowOneHour(cow: Cow): Cow {
  * modifier - poor pasture management reduces reproduction over time, since
  * nutritionModifier is derived from body condition (itself driven by forage).
  */
-export function checkBreedingOneHour(
-  cow: Cow,
-  farmSeed: string,
-  simHour: number,
-): Cow {
+export const checkBreedingOneHour = (cow: Cow, farmSeed: string, simHour: number): Cow => {
   const isEligible =
     cow.sex === "female" &&
     (cow.status === "breeding" || cow.status === "productive") &&
@@ -201,18 +197,18 @@ export function checkBreedingOneHour(
     return { ...cow, pregnant: true, pregnancyDays: 0 };
   }
   return cow;
-}
+};
 
 /**
  * Delivers a calf if gestation is complete. Returns the (updated) mother
  * and a newborn calf if one was born this hour, plus an event.
  */
-export function checkBirthOneHour(
+export const checkBirthOneHour = (
   mother: Cow,
   farmSeed: string,
   simHour: number,
   farmId: string,
-): { mother: Cow; calf: Cow | null; event: FarmEvent | null } {
+): { mother: Cow; calf: Cow | null; event: FarmEvent | null } => {
   if (!mother.pregnant || mother.pregnancyDays === undefined) {
     return { mother, calf: null, event: null };
   }
@@ -248,19 +244,19 @@ export function checkBirthOneHour(
   };
 
   return { mother: updatedMother, calf, event };
-}
+};
 
 /**
  * Checks for death this hour: old age, malnutrition (chronic low health),
  * or a small baseline disease/injury risk. No graphic depiction - this is
  * purely a numeric outcome the caller can turn into an event.
  */
-export function checkDeathOneHour(
+export const checkDeathOneHour = (
   cow: Cow,
   farmSeed: string,
   simHour: number,
   farmId: string,
-): FarmEvent | null {
+): FarmEvent | null => {
   if (cow.status === "dead" || cow.status === "sold" || cow.status === "slaughtered") {
     return null;
   }
@@ -302,8 +298,8 @@ export function checkDeathOneHour(
     type: "COW_DIED",
     data: { cowId: cow.id, cause },
   };
-}
+};
 
-function clamp(value: number, min: number, max: number): number {
+const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(max, value));
-}
+};

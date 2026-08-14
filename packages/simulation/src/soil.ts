@@ -40,7 +40,7 @@ const SOIL_HEALTH_DRIFT_RATE_PER_HOUR = 0.0006;
  * The asymmetry is the point — rest heals degraded land but never beats
  * well-managed moderate grazing, so resting is not strictly dominant.
  */
-function targetSoilHealthForDepletion(depletion: number): number {
+const targetSoilHealthForDepletion = (depletion: number): number => {
   // Plain English: depletion = 0 means "untouched, full grass". depletion =
   // 0.3 means "grazed down to 70% of max" — that's the sweet spot, target
   // = 1.0 (best possible). Move away from 0.3 in EITHER direction (too
@@ -52,9 +52,9 @@ function targetSoilHealthForDepletion(depletion: number): number {
   const spread = depletion < moderateUsePeak ? 0.5 : 0.25;
   const distance = (depletion - moderateUsePeak) / spread;
   return Math.exp(-0.5 * distance * distance);
-}
+};
 
-export function updateSoilHealthOneHour(cell: PastureCell, depletion: number): PastureCell {
+export const updateSoilHealthOneHour = (cell: PastureCell, depletion: number): PastureCell => {
   const target = targetSoilHealthForDepletion(depletion);
   // Don't jump straight to the target — nudge soilHealth a small step
   // toward it each hour. This is why soil health changes gradually over
@@ -63,18 +63,18 @@ export function updateSoilHealthOneHour(cell: PastureCell, depletion: number): P
     cell.soilHealth + (target - cell.soilHealth) * SOIL_HEALTH_DRIFT_RATE_PER_HOUR;
 
   return { ...cell, soilHealth: Math.max(0, Math.min(1, soilHealth)) };
-}
+};
 
 /**
  * Manure deposit from cows grazing this cell this hour: nutrients return
  * proportional to how much they ate, minus base uptake by the grass itself.
  */
-export function depositManureOneHour(
+export const depositManureOneHour = (
   cell: PastureCell,
   cowsInCell: Cow[],
   biomassRemovedKgHa: number,
   simHour: number,
-): PastureCell {
+): PastureCell => {
   // The more grass cows ate here this hour, the more manure they leave
   // behind — nutrients cycle back into the soil rather than just vanishing.
   const nutrientsFromManure =
@@ -90,7 +90,7 @@ export function depositManureOneHour(
     nutrients,
     lastManuredAt: cowsInCell.length > 0 ? simHour : cell.lastManuredAt,
   };
-}
+};
 
 /**
  * Biodiversity moves slowly and rewards sustained good management: it
@@ -99,7 +99,7 @@ export function depositManureOneHour(
  */
 const BIODIVERSITY_DRIFT_RATE_PER_HOUR = 0.00003;
 
-export function updateBiodiversityOneHour(cell: PastureCell, depletion: number): PastureCell {
+export const updateBiodiversityOneHour = (cell: PastureCell, depletion: number): PastureCell => {
   // Same "sweet spot" idea as soil health, but simpler: is this hour's
   // grazing intensity inside a healthy window (not too light, not too
   // heavy)? If so, biodiversity can climb all the way up to match soil
@@ -111,4 +111,4 @@ export function updateBiodiversityOneHour(cell: PastureCell, depletion: number):
     cell.biodiversity + (target - cell.biodiversity) * BIODIVERSITY_DRIFT_RATE_PER_HOUR;
 
   return { ...cell, biodiversity: Math.max(0, Math.min(1, biodiversity)) };
-}
+};

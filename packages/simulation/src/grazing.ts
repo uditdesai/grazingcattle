@@ -111,11 +111,11 @@ export type PaddockGrazingResult = {
  * toward 0 as biomass shrinks, curbing how much the herd is ALLOWED to eat
  * this hour (as opposed to how much they'd like to eat).
  */
-function swardAvailabilityFactor(biomassKgHa: number, maxBiomassKgHa: number): number {
+const swardAvailabilityFactor = (biomassKgHa: number, maxBiomassKgHa: number): number => {
   const atBiomass = biomassKgHa / (biomassKgHa + INTAKE_HALF_SATURATION_KG_HA);
   const atMax = maxBiomassKgHa / (maxBiomassKgHa + INTAKE_HALF_SATURATION_KG_HA);
   return atMax > 0 ? Math.min(1, atBiomass / atMax) : 0;
-}
+};
 
 /**
  * Grazes an entire paddock for one hour.
@@ -125,11 +125,11 @@ function swardAvailabilityFactor(biomassKgHa: number, maxBiomassKgHa: number): n
  * sward can actually deliver, then distributed across cells in proportion
  * to available biomass.
  */
-export function grazePaddockOneHour(
+export const grazePaddockOneHour = (
   cellsInPaddock: PastureCell[],
   cowsInPaddock: Cow[],
   simHour: number,
-): PaddockGrazingResult {
+): PaddockGrazingResult => {
   const forageReceivedPerCow = new Map<string, number>();
 
   if (cellsInPaddock.length === 0) {
@@ -211,4 +211,4 @@ export function grazePaddockOneHour(
   });
 
   return { cells, forageReceivedPerCow };
-}
+};

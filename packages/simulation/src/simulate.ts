@@ -43,7 +43,7 @@ export type SimulationResult = {
  * function both the CLI harness and (in Milestone 2) the catch-up
  * simulation on login call — same signature either way.
  */
-export function simulateFarm(farm: FarmState, hours: number): SimulationResult {
+export const simulateFarm = (farm: FarmState, hours: number): SimulationResult => {
   let current = farm;
   const events: FarmEvent[] = [];
 
@@ -52,9 +52,9 @@ export function simulateFarm(farm: FarmState, hours: number): SimulationResult {
   }
 
   return { farm: current, events };
-}
+};
 
-function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
+const simulateOneHour = (farm: FarmState, events: FarmEvent[]): FarmState => {
   const simHour = farm.simHour;
   const isStartOfDay = simHour % 24 === 0;
 
@@ -178,12 +178,9 @@ function simulateOneHour(farm: FarmState, events: FarmEvent[]): FarmState {
     cells: updatedCells,
     cows: [...updatedCows, ...newCalves],
   };
-}
+};
 
-function groupCowsByPaddock(
-  cows: Cow[],
-  paddocks: FarmState["paddocks"],
-): Map<string, Cow[]> {
+const groupCowsByPaddock = (cows: Cow[], paddocks: FarmState["paddocks"]): Map<string, Cow[]> => {
   const validPaddockIds = new Set(paddocks.map((p) => p.id));
   const grouped = new Map<string, Cow[]>();
 
@@ -195,4 +192,4 @@ function groupCowsByPaddock(
   }
 
   return grouped;
-}
+};

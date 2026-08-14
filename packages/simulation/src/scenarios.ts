@@ -13,7 +13,7 @@ export type Scenario = {
 const GRID_SIZE = 8;
 const QUADRANT_SIZE = GRID_SIZE / 2;
 
-function buildCells(): PastureCell[] {
+const buildCells = (): PastureCell[] => {
   const cells: PastureCell[] = [];
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 0; y < GRID_SIZE; y++) {
@@ -34,15 +34,15 @@ function buildCells(): PastureCell[] {
     }
   }
   return cells;
-}
+};
 
-function quadrantOf(x: number, y: number): number {
+const quadrantOf = (x: number, y: number): number => {
   const col = x < QUADRANT_SIZE ? 0 : 1;
   const row = y < QUADRANT_SIZE ? 0 : 1;
   return row * 2 + col;
-}
+};
 
-function buildPaddocks(cells: PastureCell[]): Paddock[] {
+const buildPaddocks = (cells: PastureCell[]): Paddock[] => {
   const cellIdsByQuadrant: string[][] = [[], [], [], []];
   for (const cell of cells) {
     cellIdsByQuadrant[quadrantOf(cell.x, cell.y)]!.push(cell.id);
@@ -52,9 +52,9 @@ function buildPaddocks(cells: PastureCell[]): Paddock[] {
     name: `Paddock ${i + 1}`,
     cellIds,
   }));
-}
+};
 
-function buildCows(count: number, paddockId: string): Cow[] {
+const buildCows = (count: number, paddockId: string): Cow[] => {
   const cows: Cow[] = [];
   for (let i = 0; i < count; i++) {
     cows.push({
@@ -76,9 +76,9 @@ function buildCows(count: number, paddockId: string): Cow[] {
     });
   }
   return cows;
-}
+};
 
-function baseFarm(id: string, name: string, cows: Cow[]): FarmState {
+const baseFarm = (id: string, name: string, cows: Cow[]): FarmState => {
   const cells = buildCells();
   const paddocks = buildPaddocks(cells);
   const seed = id;
@@ -94,9 +94,9 @@ function baseFarm(id: string, name: string, cows: Cow[]): FarmState {
     moneyUsd: 10000,
     seed,
   };
-}
+};
 
-export function buildScenario(name: ScenarioName): Scenario {
+export const buildScenario = (name: ScenarioName): Scenario => {
   switch (name) {
     case "sustainable": {
       const cows = buildCows(8, "paddock-1");
@@ -114,4 +114,4 @@ export function buildScenario(name: ScenarioName): Scenario {
       };
     }
   }
-}
+};
