@@ -1,0 +1,436 @@
+{
+  "id": "243abb7c-383e-42ea-99c9-cd4e78245a08",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.cows": {
+      "name": "cows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "farm_id": {
+          "name": "farm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sex": {
+          "name": "sex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "breed": {
+          "name": "breed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "age_days": {
+          "name": "age_days",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weight_kg": {
+          "name": "weight_kg",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mature_weight_kg": {
+          "name": "mature_weight_kg",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_condition_score": {
+          "name": "body_condition_score",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health": {
+          "name": "health",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fertility": {
+          "name": "fertility",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pregnant": {
+          "name": "pregnant",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "pregnancy_days": {
+          "name": "pregnancy_days",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_paddock_id": {
+          "name": "current_paddock_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birth_sim_hour": {
+          "name": "birth_sim_hour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exit_sim_hour": {
+          "name": "exit_sim_hour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cows_farm_id_farms_id_fk": {
+          "name": "cows_farm_id_farms_id_fk",
+          "tableFrom": "cows",
+          "tableTo": "farms",
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.farm_events": {
+      "name": "farm_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "farm_id": {
+          "name": "farm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sim_hour": {
+          "name": "sim_hour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "farm_events_farm_id_farms_id_fk": {
+          "name": "farm_events_farm_id_farms_id_fk",
+          "tableFrom": "farm_events",
+          "tableTo": "farms",
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.farms": {
+      "name": "farms",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sim_hour": {
+          "name": "sim_hour",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_simulated_at": {
+          "name": "last_simulated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "season": {
+          "name": "season",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'spring'"
+        },
+        "weather_today": {
+          "name": "weather_today",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "money_usd": {
+          "name": "money_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 10000
+        },
+        "seed": {
+          "name": "seed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.paddocks": {
+      "name": "paddocks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "farm_id": {
+          "name": "farm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cell_ids": {
+          "name": "cell_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "paddocks_farm_id_farms_id_fk": {
+          "name": "paddocks_farm_id_farms_id_fk",
+          "tableFrom": "paddocks",
+          "tableTo": "farms",
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pasture_cells": {
+      "name": "pasture_cells",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "farm_id": {
+          "name": "farm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "x": {
+          "name": "x",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "y": {
+          "name": "y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grass_biomass_kg_ha": {
+          "name": "grass_biomass_kg_ha",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_biomass_kg_ha": {
+          "name": "max_biomass_kg_ha",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "root_health": {
+          "name": "root_health",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "soil_health": {
+          "name": "soil_health",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "soil_moisture": {
+          "name": "soil_moisture",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nutrients": {
+          "name": "nutrients",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "biodiversity": {
+          "name": "biodiversity",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_grazed_at": {
+          "name": "last_grazed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_manured_at": {
+          "name": "last_manured_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pasture_cells_farm_id_farms_id_fk": {
+          "name": "pasture_cells_farm_id_farms_id_fk",
+          "tableFrom": "pasture_cells",
+          "tableTo": "farms",
+          "columnsFrom": [
+            "farm_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
