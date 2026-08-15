@@ -177,15 +177,23 @@ export const grazePaddockOneHour = (
     const cellRemoved = totalBiomassRemoved * share;
     const biomassAfter = Math.max(0, cell.grassBiomassKgHa - cellRemoved);
 
-    // THE CORE OVERGRAZING CHECK. residual = half of what this cell could
-    // carry at full health. If what's left after grazing falls below that
-    // line, the plant is being forced to eat into its root reserves instead
-    // of just its leaves — so rootHealth takes damage, proportional to how
-    // far below the line we are (a small dip barely hurts; grazing to bare
-    // dirt hurts a lot). Staying above the line lets roots slowly recover.
+    // THE CORE OVERGRAZING CHECK.
+    //
+    // Damage condition: cows are ACTIVELY removing grass AND what's left
+    // falls below half of what this cell could carry. The "cellRemoved > 0"
+    // guard is critical — the old version fired the penalty any time biomass
+    // was low, even with zero cows present. That meant a bare, ungrazed cell
+    // continued losing rootHealth every hour with no way to stop, making
+    // recovery mathematically impossible even after you removed the herd.
+    //
+    // Recovery condition: anything that isn't active overgrazing — either
+    // the paddock is ungrazed (no removal), or cows are grazing but keeping
+    // biomass above the critical line. This intentionally covers the
+    // "ungrazed but biomass still below residual" case so a resting paddock
+    // that starts bare can slowly rebuild its root system.
     const residual = cell.maxBiomassKgHa * CRITICAL_RESIDUAL_FRACTION;
     let rootHealth = cell.rootHealth;
-    if (biomassAfter < residual) {
+    if (cellRemoved > 0 && biomassAfter < residual) {
       const shortfall = (residual - biomassAfter) / residual;
       rootHealth = Math.max(0, rootHealth - shortfall * ROOT_HEALTH_PENALTY_PER_HOUR);
     } else {

@@ -82,15 +82,32 @@ export const growGrassOneHour = (cell: PastureCell, weather: Weather): PastureCe
   // how good the others are. rootHealth directly throttles growth rate —
   // this is the mechanical consequence of overgrazing forcing the plant to
   // draw down root reserves instead of growing new leaf.
+  // Floor at 0.02 so even fully destroyed roots allow ~2% of normal growth —
+  // enough to slowly break the deadlock where rootHealth=0 prevents biomass
+  // from ever recovering, which in turn prevents rootHealth from ever
+  // recovering (a permanent dead state). At 2% it still takes years; it's
+  // punishing, just not permanently unrecoverable.
   const growthRate =
-    GROWTH.baseRatePerHour * temperatureFactor * moistureFactor * cell.rootHealth;
+    GROWTH.baseRatePerHour * temperatureFactor * moistureFactor * Math.max(0.02, cell.rootHealth);
 
   // The "logistic" part: growth slows down as biomass approaches the max.
   // At low biomass (little grass) this term is small too — not much leaf
   // area yet to photosynthesise with. It peaks around the halfway point
   // (biomass = maxBiomass / 2) and shrinks toward 0 again near the ceiling.
   // This S-shaped growth curve is what real pasture growth looks like.
-  const logisticTerm = cell.grassBiomassKgHa * (1 - cell.grassBiomassKgHa / cell.maxBiomassKgHa);
+  //
+  // SEED_BIOMASS_KG_HA: adding a small constant before multiplying prevents
+  // the "logistic growth from zero" deadlock. Pure logistic growth at biomass=0
+  // is always exactly 0 (nothing to photosynthesise with), so a perfectly bare
+  // paddock could never restart even with healthy soil, moisture, and roots.
+  // The seed term represents dormant seeds and dormant root buds that are
+  // always present in the soil and can sprout independently of standing biomass.
+  // 5 kg/ha is tiny — at peak conditions it contributes < 0.02 kg/ha/hour —
+  // but it gives recovery something to build on.
+  const SEED_BIOMASS_KG_HA = 5;
+  const logisticTerm =
+    (cell.grassBiomassKgHa + SEED_BIOMASS_KG_HA) *
+    (1 - cell.grassBiomassKgHa / cell.maxBiomassKgHa);
   const deltaBiomass = growthRate * logisticTerm;
 
   // Add this hour's growth, but never let biomass go negative or exceed
