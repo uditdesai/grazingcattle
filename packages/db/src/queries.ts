@@ -145,12 +145,13 @@ export const saveFarm = async (
   });
 };
 
-export const createFarm = async (db: Db, state: FarmState): Promise<void> => {
+export const createFarm = async (db: Db, state: FarmState, userId?: string): Promise<void> => {
   const rows = stateToFarmRows(state, []);
 
   await db.transaction(async (tx) => {
     await tx.insert(farms).values({
       ...rows.farm,
+      userId: userId ?? null,
       lastSimulatedAt: new Date(),
     });
     if (rows.cells.length > 0)    await tx.insert(pastureCells).values(rows.cells);
@@ -161,7 +162,13 @@ export const createFarm = async (db: Db, state: FarmState): Promise<void> => {
 
 export const listFarmsForUser = async (db: Db, userId: string) => {
   return db
-    .select({ id: farms.id, name: farms.name, simHour: farms.simHour, season: farms.season })
+    .select({
+      id:              farms.id,
+      name:            farms.name,
+      simHour:         farms.simHour,
+      season:          farms.season,
+      lastSimulatedAt: farms.lastSimulatedAt,
+    })
     .from(farms)
     .where(eq(farms.userId, userId));
 };
