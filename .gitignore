@@ -13,10 +13,12 @@ dist/
 build/
 *.tsbuildinfo
 
-# Env files
+# Env files — ignore everything except the committed placeholder template.
+# The leading "!" un-ignores .env.example so the repo can document which
+# keys are needed without ever committing real values.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Logs
 *.log
