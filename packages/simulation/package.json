@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "sim": "tsx src/cli.ts"
+    "sim": "tsx src/cli.ts",
+    "test": "node --import tsx/esm --test src/**/*.test.ts"
   },
   "dependencies": {
     "@grazingcattle/game-types": "workspace:*"

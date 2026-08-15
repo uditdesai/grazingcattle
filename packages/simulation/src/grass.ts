@@ -1,4 +1,5 @@
 import type { PastureCell, Weather } from "@grazingcattle/game-types";
+import { GRASS } from "./constants";
 
 // ---------------------------------------------------------------------------
 // PLAIN-ENGLISH OVERVIEW
@@ -16,35 +17,6 @@ import type { PastureCell, Weather } from "@grazingcattle/game-types";
 // ---------------------------------------------------------------------------
 
 /**
- * Growth-rate reference constants. Tunable; revisited in Step 6.
- * Reference: Cacho (1993) sigmoid pasture growth — logistic curve driven by
- * temperature, moisture and sunlight, the standard building block in
- * research-grade grazing models (GrassGro, APSIM-AgPasture, SPUR).
- */
-const GROWTH = {
-  /** Base fractional growth rate per hour at ideal conditions, rootHealth = 1. */
-  baseRatePerHour: 0.0035,
-  /** Temperature (°C) at which growth is fastest. */
-  optimalTempC: 20,
-  /**
-   * Falloff away from optimalTempC. Calibrated so a C3 temperate grass at
-   * 4 °C grows at ~8% of peak (near-dormant) and at 24 °C at ~85% — the
-   * previous 0.0035 left winter growing at 40% of peak, which is why the
-   * measured seasonal curve had no real dormancy.
-   */
-  tempSensitivity: 0.01,
-  /** Below this temperature, growth stops entirely (winter dormancy). */
-  minGrowthTempC: 2,
-};
-
-/**
- * Plant-available water held in the root zone, mm. Converts real rainfall
- * and evapotranspiration (both in mm) into the cell's 0–1 moisture bucket
- * instead of the arbitrary scaling factors used previously.
- */
-const ROOT_ZONE_CAPACITY_MM = 120;
-
-/**
  * Bell-curve-ish response to temperature, 0–1.
  * Plain English: grass grows fastest at optimalTempC (20°C). The further
  * away the actual temperature is (in either direction — too cold OR too
@@ -52,9 +24,9 @@ const ROOT_ZONE_CAPACITY_MM = 120;
  * that's winter dormancy.
  */
 const computeTemperatureFactor = (temperatureC: number): number => {
-  if (temperatureC < GROWTH.minGrowthTempC) return 0;
-  const delta = temperatureC - GROWTH.optimalTempC;
-  return Math.exp(-GROWTH.tempSensitivity * delta * delta);
+  if (temperatureC < GRASS.minGrowthTempC) return 0;
+  const delta = temperatureC - GRASS.optimalTempC;
+  return Math.exp(-GRASS.tempSensitivity * delta * delta);
 };
 
 /**
@@ -65,7 +37,7 @@ const computeTemperatureFactor = (temperatureC: number): number => {
  * grass more slowly, all else equal.
  */
 const computeMoistureFactor = (soilMoisture: number): number => {
-  return Math.max(0, Math.min(1, soilMoisture / 0.6));
+  return Math.max(0, Math.min(1, soilMoisture / GRASS.moistureFullFactor));
 };
 
 /**
@@ -82,13 +54,13 @@ export const growGrassOneHour = (cell: PastureCell, weather: Weather): PastureCe
   // how good the others are. rootHealth directly throttles growth rate —
   // this is the mechanical consequence of overgrazing forcing the plant to
   // draw down root reserves instead of growing new leaf.
-  // Floor at 0.02 so even fully destroyed roots allow ~2% of normal growth —
-  // enough to slowly break the deadlock where rootHealth=0 prevents biomass
-  // from ever recovering, which in turn prevents rootHealth from ever
-  // recovering (a permanent dead state). At 2% it still takes years; it's
-  // punishing, just not permanently unrecoverable.
+  // Floor at rootHealthFloor so even fully destroyed roots allow ~2% of
+  // normal growth — punishingly slow, but not permanently unrecoverable.
   const growthRate =
-    GROWTH.baseRatePerHour * temperatureFactor * moistureFactor * Math.max(0.02, cell.rootHealth);
+    GRASS.baseGrowthRatePerHour *
+    temperatureFactor *
+    moistureFactor *
+    Math.max(GRASS.rootHealthFloor, cell.rootHealth);
 
   // The "logistic" part: growth slows down as biomass approaches the max.
   // At low biomass (little grass) this term is small too — not much leaf
@@ -96,17 +68,14 @@ export const growGrassOneHour = (cell: PastureCell, weather: Weather): PastureCe
   // (biomass = maxBiomass / 2) and shrinks toward 0 again near the ceiling.
   // This S-shaped growth curve is what real pasture growth looks like.
   //
-  // SEED_BIOMASS_KG_HA: adding a small constant before multiplying prevents
+  // seedBiomassKgHa: adding a small constant before multiplying prevents
   // the "logistic growth from zero" deadlock. Pure logistic growth at biomass=0
   // is always exactly 0 (nothing to photosynthesise with), so a perfectly bare
   // paddock could never restart even with healthy soil, moisture, and roots.
   // The seed term represents dormant seeds and dormant root buds that are
   // always present in the soil and can sprout independently of standing biomass.
-  // 5 kg/ha is tiny — at peak conditions it contributes < 0.02 kg/ha/hour —
-  // but it gives recovery something to build on.
-  const SEED_BIOMASS_KG_HA = 5;
   const logisticTerm =
-    (cell.grassBiomassKgHa + SEED_BIOMASS_KG_HA) *
+    (cell.grassBiomassKgHa + GRASS.seedBiomassKgHa) *
     (1 - cell.grassBiomassKgHa / cell.maxBiomassKgHa);
   const deltaBiomass = growthRate * logisticTerm;
 
@@ -138,11 +107,11 @@ export const updateSoilMoistureOneHour = (cell: PastureCell, weather: Weather): 
   const evapotranspirationMmPerHour = evapotranspirationMmPerDay / 24;
 
   // Net change this hour = rain in minus water lost, converted from mm of
-  // water into a fraction of the bucket's total capacity (ROOT_ZONE_CAPACITY_MM).
+  // water into a fraction of the bucket's total capacity (rootZoneCapacityMm).
   const netMmPerHour = rainMmPerHour - evapotranspirationMmPerHour;
   const soilMoisture = Math.max(
     0,
-    Math.min(1, cell.soilMoisture + netMmPerHour / ROOT_ZONE_CAPACITY_MM),
+    Math.min(1, cell.soilMoisture + netMmPerHour / GRASS.rootZoneCapacityMm),
   );
 
   return { ...cell, soilMoisture };

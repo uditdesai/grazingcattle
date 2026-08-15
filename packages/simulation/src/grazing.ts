@@ -1,4 +1,5 @@
 import type { Cow, PastureCell } from "@grazingcattle/game-types";
+import { GRAZING } from "./constants";
 
 // ---------------------------------------------------------------------------
 // PLAIN-ENGLISH OVERVIEW
@@ -17,18 +18,18 @@ import type { Cow, PastureCell } from "@grazingcattle/game-types";
 // This is the file where the game's core lesson lives: leave enough grass
 // standing, or the land gets measurably worse and stays worse.
 //
-// NOTE: see the big comment on CRITICAL_RESIDUAL_FRACTION below for a real
-// bug we hit here — an early version measured overgrazing "per hour" instead
-// of "over the whole grazing period", which made the overgrazing penalty
-// completely unreachable no matter how many cows you added.
+// NOTE: see the big comment on GRAZING.criticalResidualFraction below for a
+// real bug we hit here — an early version measured overgrazing "per hour"
+// instead of "over the whole grazing period", which made the overgrazing
+// penalty completely unreachable no matter how many cows you added.
 // ---------------------------------------------------------------------------
 
 /**
- * Real-world ranching rule of thumb: cattle eat ~2.5% of body weight in dry
- * matter forage per day. This is the actual unit ranchers use to size herds
- * to land (Animal Unit Month).
+ * Re-exported so cows.ts can compute per-cow intake demand without a
+ * circular import. The source of truth is GRAZING.dailyIntakeFractionOfBodyweight
+ * in constants.ts.
  */
-export const DAILY_INTAKE_FRACTION_OF_BODYWEIGHT = 0.025;
+export const DAILY_INTAKE_FRACTION_OF_BODYWEIGHT = GRAZING.dailyIntakeFractionOfBodyweight;
 
 /**
  * "Take half, leave half", expressed as a STATE rather than a flow.
@@ -56,31 +57,15 @@ export const DAILY_INTAKE_FRACTION_OF_BODYWEIGHT = 0.025;
  *
  * The fix: stop asking "what fraction disappeared in the last hour?" and
  * instead ask "is what's currently standing above or below half of what
- * this land could carry?" (see CRITICAL_RESIDUAL_FRACTION below). That's a
- * single comparison against a fixed line, re-checked every hour, so it
- * doesn't need to remember "when did the herd arrive" or track a running
- * total across a multi-week grazing bout — but it produces the same
+ * this land could carry?" (see criticalResidualFraction in constants.ts).
+ * That's a single comparison against a fixed line, re-checked every hour,
+ * so it doesn't need to remember "when did the herd arrive" or track a
+ * running total across a multi-week grazing bout — but it produces the same
  * real-world behavior: graze a paddock down past the halfway mark (whether
  * that takes one day or two weeks) and root health starts taking damage
  * immediately, every hour it stays below that line.
- *
- * Below that residual line, the plant draws on root reserves and root
- * growth stops. This works identically for rotational and continuous
- * grazing, and needs no extra state (no "when did cows arrive" tracking).
  */
-export const CRITICAL_RESIDUAL_FRACTION = 0.5;
-
-/** Root health lost per hour at maximum shortfall (biomass at zero). */
-const ROOT_HEALTH_PENALTY_PER_HOUR = 0.002;
-/** Root health regained per hour whenever biomass sits above the residual. */
-const ROOT_HEALTH_RECOVERY_PER_HOUR = 0.0006;
-
-/**
- * Half-saturation constant (kg DM/ha) for sward-limited intake. Cattle
- * cannot maintain full bite rate on a short sward even when total forage
- * exists, so intake falls off as standing biomass declines.
- */
-const INTAKE_HALF_SATURATION_KG_HA = 600;
+export const CRITICAL_RESIDUAL_FRACTION = GRAZING.criticalResidualFraction;
 
 export type CellGrazingOutcome = {
   cell: PastureCell;
@@ -112,8 +97,8 @@ export type PaddockGrazingResult = {
  * this hour (as opposed to how much they'd like to eat).
  */
 const swardAvailabilityFactor = (biomassKgHa: number, maxBiomassKgHa: number): number => {
-  const atBiomass = biomassKgHa / (biomassKgHa + INTAKE_HALF_SATURATION_KG_HA);
-  const atMax = maxBiomassKgHa / (maxBiomassKgHa + INTAKE_HALF_SATURATION_KG_HA);
+  const atBiomass = biomassKgHa / (biomassKgHa + GRAZING.intakeHalfSaturationKgHa);
+  const atMax = maxBiomassKgHa / (maxBiomassKgHa + GRAZING.intakeHalfSaturationKgHa);
   return atMax > 0 ? Math.min(1, atBiomass / atMax) : 0;
 };
 
@@ -157,7 +142,8 @@ export const grazePaddockOneHour = (
   // update each cow's weight based on what IT personally got to eat.
   let totalDemandKg = 0;
   for (const cow of cowsInPaddock) {
-    const potentialHourlyIntakeKg = (cow.weightKg * DAILY_INTAKE_FRACTION_OF_BODYWEIGHT) / 24;
+    const potentialHourlyIntakeKg =
+      (cow.weightKg * GRAZING.dailyIntakeFractionOfBodyweight) / 24;
     const actualHourlyIntakeKg = potentialHourlyIntakeKg * availabilityFactor;
     forageReceivedPerCow.set(cow.id, actualHourlyIntakeKg);
     totalDemandKg += actualHourlyIntakeKg;
@@ -173,7 +159,8 @@ export const grazePaddockOneHour = (
     // much grass it had relative to the rest of the paddock — cells with
     // more grass get grazed harder, exactly like real cattle preferring
     // the lusher patches.
-    const share = totalAvailableBiomassKg > 0 ? cell.grassBiomassKgHa / totalAvailableBiomassKg : 0;
+    const share =
+      totalAvailableBiomassKg > 0 ? cell.grassBiomassKgHa / totalAvailableBiomassKg : 0;
     const cellRemoved = totalBiomassRemoved * share;
     const biomassAfter = Math.max(0, cell.grassBiomassKgHa - cellRemoved);
 
@@ -191,13 +178,13 @@ export const grazePaddockOneHour = (
     // biomass above the critical line. This intentionally covers the
     // "ungrazed but biomass still below residual" case so a resting paddock
     // that starts bare can slowly rebuild its root system.
-    const residual = cell.maxBiomassKgHa * CRITICAL_RESIDUAL_FRACTION;
+    const residual = cell.maxBiomassKgHa * GRAZING.criticalResidualFraction;
     let rootHealth = cell.rootHealth;
     if (cellRemoved > 0 && biomassAfter < residual) {
       const shortfall = (residual - biomassAfter) / residual;
-      rootHealth = Math.max(0, rootHealth - shortfall * ROOT_HEALTH_PENALTY_PER_HOUR);
+      rootHealth = Math.max(0, rootHealth - shortfall * GRAZING.rootHealthPenaltyPerHour);
     } else {
-      rootHealth = Math.min(1, rootHealth + ROOT_HEALTH_RECOVERY_PER_HOUR);
+      rootHealth = Math.min(1, rootHealth + GRAZING.rootHealthRecoveryPerHour);
     }
 
     // depletion is just "how drawn-down is this cell, as a fraction of its

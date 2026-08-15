@@ -7,7 +7,8 @@
   "scripts": {
     "sim": "pnpm --filter @grazingcattle/simulation run sim",
     "dev": "pnpm --filter @grazingcattle/web run dev",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm --filter @grazingcattle/simulation run test"
   },
   "packageManager": "pnpm@11.21.0"
 }

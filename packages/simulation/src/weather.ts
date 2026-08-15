@@ -1,4 +1,5 @@
 import type { Season, Weather } from "@grazingcattle/game-types";
+import { MAX_SUNLIGHT_HOURS, SEASONAL_BASELINES } from "./constants";
 import { rngFor } from "./rng";
 
 /**
@@ -15,39 +16,6 @@ export const seasonForDay = (dayIndex: number): Season => {
   const dayOfYear = ((dayIndex % YEAR_LENGTH_DAYS) + YEAR_LENGTH_DAYS) % YEAR_LENGTH_DAYS;
   const seasonIndex = Math.floor(dayOfYear / SEASON_LENGTH_DAYS);
   return SEASON_ORDER[seasonIndex]!;
-};
-
-type SeasonalBaseline = {
-  temperatureC: { mean: number; stdDev: number };
-  rainfallMm: { mean: number; stdDev: number };
-  sunlightHours: { mean: number; stdDev: number };
-};
-
-/**
- * Tunable placeholder climate — a temperate grassland default, not modeling
- * any real location. Revisited in Step 6.
- */
-const SEASONAL_BASELINES: Record<Season, SeasonalBaseline> = {
-  spring: {
-    temperatureC: { mean: 14, stdDev: 3 },
-    rainfallMm: { mean: 3, stdDev: 4 },
-    sunlightHours: { mean: 7, stdDev: 1.5 },
-  },
-  summer: {
-    temperatureC: { mean: 24, stdDev: 3 },
-    rainfallMm: { mean: 1.5, stdDev: 3 },
-    sunlightHours: { mean: 9, stdDev: 1 },
-  },
-  fall: {
-    temperatureC: { mean: 13, stdDev: 3 },
-    rainfallMm: { mean: 3.5, stdDev: 4 },
-    sunlightHours: { mean: 6, stdDev: 1.5 },
-  },
-  winter: {
-    temperatureC: { mean: 4, stdDev: 4 },
-    rainfallMm: { mean: 2.5, stdDev: 3 },
-    sunlightHours: { mean: 4, stdDev: 1 },
-  },
 };
 
 /**
@@ -67,7 +35,7 @@ export const generateWeather = (farmSeed: string, simHour: number): Weather => {
     rng.gaussian(baseline.rainfallMm.mean, baseline.rainfallMm.stdDev),
   );
   const sunlightHours = Math.min(
-    14,
+    MAX_SUNLIGHT_HOURS,
     Math.max(0, rng.gaussian(baseline.sunlightHours.mean, baseline.sunlightHours.stdDev)),
   );
 
