@@ -140,7 +140,7 @@ export default function DevPage() {
   };
 
   const liveCows = farm?.cows.filter((c) => isLive(c.status)) ?? [];
-  const day = farm ? Math.floor(farm.simHour / 24) : 0;
+  const day = farm ? Math.floor(farm.simHour / 24) + 1 : 1;
 
   return (
     <main style={{ fontFamily: "monospace", padding: 24, maxWidth: 1100 }}>
@@ -265,7 +265,7 @@ export default function DevPage() {
             {events.length === 0 && <li style={{ color: "#666" }}>None yet.</li>}
             {events.map((e) => (
               <li key={e.id}>
-                day {Math.floor(e.simHour / 24)} — {e.type} — {JSON.stringify(e.data)}
+                day {Math.floor(e.simHour / 24) + 1} — {e.type} — {JSON.stringify(e.data)}
               </li>
             ))}
           </ul>
