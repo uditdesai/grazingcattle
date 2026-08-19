@@ -17,17 +17,20 @@ const buildCells = (): PastureCell[] => {
   const cells: PastureCell[] = [];
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 0; y < GRID_SIZE; y++) {
+      // Slight per-cell variation so the grid isn't perfectly uniform.
+      // Uses a simple deterministic pattern based on position.
+      const variation = ((x * 3 + y * 7) % 10) / 100; // 0.00–0.09
       cells.push({
         id: `cell_${x}_${y}`,
         x,
         y,
-        grassBiomassKgHa: 1800,
+        grassBiomassKgHa: 900 + variation * 400,  // 900–940 kg/ha
         maxBiomassKgHa: 2500,
-        rootHealth: 1,
-        soilHealth: 0.6,
-        soilMoisture: 0.5,
-        nutrients: 0.5,
-        biodiversity: 0.5,
+        rootHealth: 0.55 + variation * 0.2,        // 0.55–0.73
+        soilHealth: 0.35 + variation * 0.15,       // 0.35–0.49
+        soilMoisture: 0.4 + variation * 0.1,       // 0.40–0.49
+        nutrients: 0.3 + variation * 0.1,          // 0.30–0.39
+        biodiversity: 0.3 + variation * 0.1,       // 0.30–0.39
         lastGrazedAt: null,
         lastManuredAt: null,
       });
@@ -65,10 +68,13 @@ const buildCows = (count: number, paddockId: string): Cow[] => {
       // death is observable within a multi-year run.
       ageDays: 365 * 3,
       matureWeightKg: 550,
-      weightKg: 500,
-      bodyConditionScore: 5,
-      health: 0.9,
-      fertility: 0.7,
+      // 87% of mature weight → BCS ~3.5 (below ideal 5, not in danger).
+      // BCS is recomputed from weight each tick, so bodyConditionScore here
+      // is just the initial DB value before the first simulation hour runs.
+      weightKg: 480,
+      bodyConditionScore: 3.5,
+      health: 0.75,
+      fertility: 0.6,
       pregnant: false,
       status: "breeding",
       currentPaddockId: paddockId,
