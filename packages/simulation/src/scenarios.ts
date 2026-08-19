@@ -13,24 +13,37 @@ export type Scenario = {
 const GRID_SIZE = 8;
 const QUADRANT_SIZE = GRID_SIZE / 2;
 
+// Per-paddock base values give each quadrant a distinct starting character —
+// one has lush grass but tired soil, another has recovered roots but sparse
+// cover, etc. All are within a similar overall range so no paddock is a
+// clear "best choice" at first glance.
+const PADDOCK_BASES = [
+  { grass: 880,  roots: 0.50, soil: 0.40, moisture: 0.42, nutrients: 0.32, biodiversity: 0.28 },
+  { grass: 950,  roots: 0.63, soil: 0.32, moisture: 0.38, nutrients: 0.27, biodiversity: 0.36 },
+  { grass: 910,  roots: 0.57, soil: 0.36, moisture: 0.44, nutrients: 0.31, biodiversity: 0.31 },
+  { grass: 870,  roots: 0.60, soil: 0.34, moisture: 0.39, nutrients: 0.29, biodiversity: 0.34 },
+] as const;
+
 const buildCells = (): PastureCell[] => {
   const cells: PastureCell[] = [];
   for (let x = 0; x < GRID_SIZE; x++) {
     for (let y = 0; y < GRID_SIZE; y++) {
-      // Slight per-cell variation so the grid isn't perfectly uniform.
-      // Uses a simple deterministic pattern based on position.
-      const variation = ((x * 3 + y * 7) % 10) / 100; // 0.00–0.09
+      // Quadrant index inline (quadrantOf isn't defined yet at this point).
+      const q = (y < QUADRANT_SIZE ? 0 : 1) * 2 + (x < QUADRANT_SIZE ? 0 : 1);
+      const base = PADDOCK_BASES[q]!;
+      // Cell-level noise layered on top of the paddock base.
+      const v = ((x * 3 + y * 7) % 10) / 100; // 0.00–0.09
       cells.push({
         id: `cell_${x}_${y}`,
         x,
         y,
-        grassBiomassKgHa: 900 + variation * 400,  // 900–940 kg/ha
+        grassBiomassKgHa: base.grass + v * 200,
         maxBiomassKgHa: 2500,
-        rootHealth: 0.55 + variation * 0.2,        // 0.55–0.73
-        soilHealth: 0.35 + variation * 0.15,       // 0.35–0.49
-        soilMoisture: 0.4 + variation * 0.1,       // 0.40–0.49
-        nutrients: 0.3 + variation * 0.1,          // 0.30–0.39
-        biodiversity: 0.3 + variation * 0.1,       // 0.30–0.39
+        rootHealth:   Math.min(1, base.roots       + v * 0.10),
+        soilHealth:   Math.min(1, base.soil        + v * 0.08),
+        soilMoisture: Math.min(1, base.moisture    + v * 0.08),
+        nutrients:    Math.min(1, base.nutrients   + v * 0.08),
+        biodiversity: Math.min(1, base.biodiversity + v * 0.08),
         lastGrazedAt: null,
         lastManuredAt: null,
       });
@@ -60,21 +73,28 @@ const buildPaddocks = (cells: PastureCell[]): Paddock[] => {
 const buildCows = (count: number, paddockId: string): Cow[] => {
   const cows: Cow[] = [];
   for (let i = 0; i < count; i++) {
+    // Deterministic variation per cow using prime multipliers so no two
+    // cows start identical. All values stay within a realistic range.
+    const ageDays   = 365 * 2 + (i * 91) % (365 * 3);   // 2–5 years
+    const weightKg  = 460 + (i * 17) % 50;               // 460–509 kg → BCS ~3.0–3.9
+    const health    = 0.65 + ((i * 7) % 20) / 100;       // 0.65–0.84
+    const fertility = 0.50 + ((i * 11) % 20) / 100;      // 0.50–0.69
+    const sex: "male" | "female" = i % 4 === 0 ? "male" : "female";
+
+    // BCS is recomputed from weightKg each tick; this initial value is only
+    // stored in the DB before the first simulation hour runs.
+    const bcs = parseFloat((5 + (weightKg / 550 - 1) * 12).toFixed(1));
+
     cows.push({
       id: `cow_${i}`,
-      sex: i % 4 === 0 ? "male" : "female",
+      sex,
       breed: "Angus",
-      // Start as young adults (~3 years) so aging into "old" and eventual
-      // death is observable within a multi-year run.
-      ageDays: 365 * 3,
+      ageDays,
       matureWeightKg: 550,
-      // 87% of mature weight → BCS ~3.5 (below ideal 5, not in danger).
-      // BCS is recomputed from weight each tick, so bodyConditionScore here
-      // is just the initial DB value before the first simulation hour runs.
-      weightKg: 480,
-      bodyConditionScore: 3.5,
-      health: 0.75,
-      fertility: 0.6,
+      weightKg,
+      bodyConditionScore: bcs,
+      health,
+      fertility,
       pregnant: false,
       status: "breeding",
       currentPaddockId: paddockId,
@@ -105,8 +125,8 @@ const baseFarm = (id: string, name: string, cows: Cow[]): FarmState => {
 export const buildScenario = (name: ScenarioName): Scenario => {
   switch (name) {
     case "sustainable": {
-      const cows = buildCows(8, "paddock-1");
-      return { farm: baseFarm("farm-sustainable", "Sustainable (8 cows, 1 paddock, no rotation)", cows) };
+      const cows = buildCows(10, "paddock-1");
+      return { farm: baseFarm("farm-sustainable", "Sustainable (10 cows, 1 paddock, no rotation)", cows) };
     }
     case "overstocked": {
       const cows = buildCows(40, "paddock-1");

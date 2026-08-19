@@ -32,8 +32,8 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// 1 real hour = 5 farm hours. See memory: project_time_ratio.md
-const FARM_HOURS_PER_REAL_HOUR = 5;
+// 1 real hour = 7 farm hours (1 real day = 7 farm days).
+const FARM_HOURS_PER_REAL_HOUR = 7;
 
 export const GET = async () => {
   // 1. Verify the session. getUser() talks to Supabase's server to confirm the
