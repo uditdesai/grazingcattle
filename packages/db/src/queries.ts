@@ -22,7 +22,7 @@
  */
 
 import type { FarmEvent, FarmState } from "@grazingcattle/game-types";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { farmRowsToState, stateToFarmRows } from "./mapper";
 import { cows, farmEvents, farms, paddocks, pastureCells } from "./schema";
@@ -87,14 +87,14 @@ export const saveFarm = async (
         .onConflictDoUpdate({
           target: pastureCells.id,
           set: {
-            grassBiomassKgHa:  pastureCells.grassBiomassKgHa,
-            rootHealth:        pastureCells.rootHealth,
-            soilHealth:        pastureCells.soilHealth,
-            soilMoisture:      pastureCells.soilMoisture,
-            nutrients:         pastureCells.nutrients,
-            biodiversity:      pastureCells.biodiversity,
-            lastGrazedAt:      pastureCells.lastGrazedAt,
-            lastManuredAt:     pastureCells.lastManuredAt,
+            grassBiomassKgHa:  sql`excluded.grass_biomass_kg_ha`,
+            rootHealth:        sql`excluded.root_health`,
+            soilHealth:        sql`excluded.soil_health`,
+            soilMoisture:      sql`excluded.soil_moisture`,
+            nutrients:         sql`excluded.nutrients`,
+            biodiversity:      sql`excluded.biodiversity`,
+            lastGrazedAt:      sql`excluded.last_grazed_at`,
+            lastManuredAt:     sql`excluded.last_manured_at`,
           },
         });
     }
@@ -107,8 +107,8 @@ export const saveFarm = async (
         .onConflictDoUpdate({
           target: paddocks.id,
           set: {
-            name:    paddocks.name,
-            cellIds: paddocks.cellIds,
+            name:    sql`excluded.name`,
+            cellIds: sql`excluded.cell_ids`,
           },
         });
     }
@@ -121,16 +121,16 @@ export const saveFarm = async (
         .onConflictDoUpdate({
           target: cows.id,
           set: {
-            ageDays:            cows.ageDays,
-            weightKg:           cows.weightKg,
-            bodyConditionScore: cows.bodyConditionScore,
-            health:             cows.health,
-            fertility:          cows.fertility,
-            pregnant:           cows.pregnant,
-            pregnancyDays:      cows.pregnancyDays,
-            status:             cows.status,
-            currentPaddockId:   cows.currentPaddockId,
-            exitSimHour:        cows.exitSimHour,
+            ageDays:            sql`excluded.age_days`,
+            weightKg:           sql`excluded.weight_kg`,
+            bodyConditionScore: sql`excluded.body_condition_score`,
+            health:             sql`excluded.health`,
+            fertility:          sql`excluded.fertility`,
+            pregnant:           sql`excluded.pregnant`,
+            pregnancyDays:      sql`excluded.pregnancy_days`,
+            status:             sql`excluded.status`,
+            currentPaddockId:   sql`excluded.current_paddock_id`,
+            exitSimHour:        sql`excluded.exit_sim_hour`,
           },
         });
     }

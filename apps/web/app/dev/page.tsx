@@ -203,9 +203,9 @@ export default function DevPage() {
               <tr>
                 <th style={thStyle}>Paddock</th>
                 <th style={thStyle}>Cows</th>
-                <th style={thStyle}>Mean grass (kg/ha)</th>
-                <th style={thStyle}>Mean soil health</th>
-                <th style={thStyle}>Mean root health</th>
+                <th style={thStyle}>Grass (kg/ha)</th>
+                <th style={thStyle}>Soil health</th>
+                <th style={thStyle}>Root health</th>
               </tr>
             </thead>
             <tbody>
@@ -215,9 +215,9 @@ export default function DevPage() {
                   <tr key={p.id}>
                     <td style={tdStyle}>{p.name}</td>
                     <td style={tdStyle}>{s.cowCount}</td>
-                    <td style={tdStyle}>{s.meanGrass.toFixed(0)}</td>
-                    <td style={tdStyle}>{s.meanSoil.toFixed(2)}</td>
-                    <td style={tdStyle}>{s.meanRoots.toFixed(2)}</td>
+                    <td style={tdStyle}>{s.meanGrass.toFixed(0)} <span style={{ color: "#999" }}>/ 2500</span></td>
+                    <td style={tdStyle}>{s.meanSoil.toFixed(2)} <span style={{ color: "#999" }}>/ 1.0</span></td>
+                    <td style={tdStyle}>{s.meanRoots.toFixed(2)} <span style={{ color: "#999" }}>/ 1.0</span></td>
                   </tr>
                 );
               })}
@@ -246,9 +246,9 @@ export default function DevPage() {
                   <td style={tdStyle}>{cow.status}</td>
                   <td style={tdStyle}>{cow.sex}</td>
                   <td style={tdStyle}>{(cow.ageDays / 365).toFixed(1)}</td>
-                  <td style={tdStyle}>{cow.weightKg.toFixed(0)}</td>
-                  <td style={tdStyle}>{cow.bodyConditionScore.toFixed(1)}</td>
-                  <td style={tdStyle}>{cow.health.toFixed(2)}</td>
+                  <td style={tdStyle}>{cow.weightKg.toFixed(0)} <span style={{ color: "#999" }}>/ {cow.matureWeightKg} kg</span></td>
+                  <td style={tdStyle}>{cow.bodyConditionScore.toFixed(1)} <span style={{ color: "#999" }}>/ 9</span></td>
+                  <td style={tdStyle}>{cow.health.toFixed(2)} <span style={{ color: "#999" }}>/ 1.0</span></td>
                   <td style={tdStyle}>{cow.currentPaddockId}</td>
                   <td style={tdStyle}>
                     <button style={btnStyle} onClick={() => sellCow(cow.id)} disabled={loading}>
