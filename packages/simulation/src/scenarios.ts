@@ -9,8 +9,8 @@ export type Scenario = {
   rotationIntervalDays?: number;
 };
 
-/** 8x8 grid = 64 cells, split into 4 quadrant paddocks of 16 cells (~16 ha) each. */
-const GRID_SIZE = 8;
+/** 4x4 grid = 16 cells, split into 4 quadrant paddocks of 4 cells (~4 ha) each. */
+const GRID_SIZE = 4;
 const QUADRANT_SIZE = GRID_SIZE / 2;
 
 // Per-paddock base values give each quadrant a distinct starting character —
@@ -85,6 +85,11 @@ const buildCows = (count: number, paddockId: string): Cow[] => {
     // stored in the DB before the first simulation hour runs.
     const bcs = parseFloat((5 + (weightKg / 550 - 1) * 12).toFixed(1));
 
+    // Cows 2 and 5 start already pregnant so the player sees a calf
+    // within the first ~5 real days rather than waiting 30+ days.
+    const pregnant = sex === "female" && (i === 2 || i === 5);
+    const pregnancyDays = i === 2 ? 140 : i === 5 ? 80 : undefined;
+
     cows.push({
       id: `cow_${i}`,
       sex,
@@ -95,7 +100,8 @@ const buildCows = (count: number, paddockId: string): Cow[] => {
       bodyConditionScore: bcs,
       health,
       fertility,
-      pregnant: false,
+      pregnant,
+      pregnancyDays,
       status: "breeding",
       currentPaddockId: paddockId,
       birthSimHour: 0,

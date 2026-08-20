@@ -22,7 +22,7 @@
  */
 
 import type { FarmEvent, FarmState } from "@grazingcattle/game-types";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { farmRowsToState, stateToFarmRows } from "./mapper";
 import { cows, farmEvents, farms, paddocks, pastureCells } from "./schema";
@@ -158,6 +158,29 @@ export const createFarm = async (db: Db, state: FarmState, userId?: string): Pro
     if (rows.paddocks.length > 0) await tx.insert(paddocks).values(rows.paddocks);
     if (rows.cows.length > 0)     await tx.insert(cows).values(rows.cows);
   });
+};
+
+export const listRecentFarmEvents = async (
+  db: Db,
+  farmId: string,
+  limit = 50,
+): Promise<FarmEvent[]> => {
+  const rows = await db
+    .select()
+    .from(farmEvents)
+    .where(eq(farmEvents.farmId, farmId))
+    .orderBy(desc(farmEvents.simHour))
+    .limit(limit);
+  return rows.map(
+    (r) =>
+      ({
+        id: r.id,
+        farmId: r.farmId,
+        simHour: r.simHour,
+        type: r.type,
+        data: r.data,
+      }) as FarmEvent,
+  );
 };
 
 export const listFarmsForUser = async (db: Db, userId: string) => {

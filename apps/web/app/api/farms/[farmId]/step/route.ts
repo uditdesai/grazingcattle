@@ -15,7 +15,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { createDb, loadFarm, saveFarm } from "@grazingcattle/db";
+import { createDb, listRecentFarmEvents, loadFarm, saveFarm } from "@grazingcattle/db";
 import { simulateFarm } from "@grazingcattle/simulation";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -49,6 +49,7 @@ export const POST = async (
 
   const result = simulateFarm(state, parsed.data.hours);
   await saveFarm(db, result.farm, result.events, new Date());
+  const recentEvents = await listRecentFarmEvents(db, farmId, 50);
 
-  return NextResponse.json({ farm: result.farm, events: result.events });
+  return NextResponse.json({ farm: result.farm, events: recentEvents });
 };

@@ -10,5 +10,5 @@ export type {
   FarmEventRow,
 } from "./schema";
 
-export { loadFarm, saveFarm, createFarm, listFarmsForUser, loadFarmLastSimulatedAt } from "./queries";
+export { loadFarm, saveFarm, createFarm, listFarmsForUser, listRecentFarmEvents, loadFarmLastSimulatedAt } from "./queries";
 export { farmRowsToState, stateToFarmRows } from "./mapper";

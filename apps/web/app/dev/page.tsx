@@ -78,7 +78,7 @@ export default function DevPage() {
       if (!res.ok) throw new Error(`Step failed: ${res.status}`);
       const data: { farm: FarmState; events: FarmEvent[] } = await res.json();
       setFarm(data.farm);
-      setEvents((prev) => [...data.events, ...prev].slice(0, MAX_EVENTS_SHOWN));
+      setEvents(data.events.slice(0, MAX_EVENTS_SHOWN));
       setCatchUpHours(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

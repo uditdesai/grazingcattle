@@ -26,7 +26,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { createDb, createFarm, listFarmsForUser, loadFarm, saveFarm } from "@grazingcattle/db";
+import { createDb, createFarm, listFarmsForUser, listRecentFarmEvents, loadFarm, saveFarm } from "@grazingcattle/db";
 import { buildScenario, simulateFarm } from "@grazingcattle/simulation";
 import { NextResponse } from "next/server";
 
@@ -81,8 +81,11 @@ export const GET = async () => {
   if (catchUpHours > 0) {
     const result = simulateFarm(state, catchUpHours);
     await saveFarm(db, result.farm, result.events, now);
-    return NextResponse.json({ farm: result.farm, events: result.events, catchUpHours });
+    // Merge new catch-up events with existing history so the log stays full.
+    const recentEvents = await listRecentFarmEvents(db, farmMeta.id, 50);
+    return NextResponse.json({ farm: result.farm, events: recentEvents, catchUpHours });
   }
 
-  return NextResponse.json({ farm: state, events: [], catchUpHours: 0 });
+  const recentEvents = await listRecentFarmEvents(db, farmMeta.id, 50);
+  return NextResponse.json({ farm: state, events: recentEvents, catchUpHours: 0 });
 };
