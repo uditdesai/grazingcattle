@@ -103,10 +103,10 @@ export const GRAZING = {
   /**
    * Root health recovered per hour when the paddock is not being overgrazed
    * (either ungrazed, or grazed but above the residual line). At this rate,
-   * full recovery from rootHealth=0 takes ~1,667 hours (~70 days) of rest —
-   * multiple seasons if roots were severely damaged.
+   * full recovery from rootHealth=0 takes ~5,000 hours (~208 days) of rest —
+   * multiple seasons, so severe overgrazing takes real time to undo.
    */
-  rootHealthRecoveryPerHour: 0.0006,
+  rootHealthRecoveryPerHour: 0.0002,
 
   /**
    * Half-saturation constant for sward-limited intake, kg DM/ha.

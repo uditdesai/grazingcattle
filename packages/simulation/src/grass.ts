@@ -49,18 +49,23 @@ export const growGrassOneHour = (cell: PastureCell, weather: Weather): PastureCe
   const temperatureFactor = computeTemperatureFactor(weather.temperatureC);
   const moistureFactor = computeMoistureFactor(cell.soilMoisture);
 
-  // Combine all three conditions multiplicatively: if ANY one of them is
+  // Combine all four conditions multiplicatively: if ANY one of them is
   // bad (e.g. temperatureFactor near 0 in winter), growth is slow no matter
   // how good the others are. rootHealth directly throttles growth rate —
   // this is the mechanical consequence of overgrazing forcing the plant to
   // draw down root reserves instead of growing new leaf.
   // Floor at rootHealthFloor so even fully destroyed roots allow ~2% of
   // normal growth — punishingly slow, but not permanently unrecoverable.
+  // soilHealth scales from 50% to 100% of growth rate: degraded soil (0.3)
+  // means 65% of peak growth even with healthy roots, rewarding long-term
+  // good management and giving soil health a real in-game purpose.
+  const soilFactor = 0.5 + 0.5 * cell.soilHealth;
   const growthRate =
     GRASS.baseGrowthRatePerHour *
     temperatureFactor *
     moistureFactor *
-    Math.max(GRASS.rootHealthFloor, cell.rootHealth);
+    Math.max(GRASS.rootHealthFloor, cell.rootHealth) *
+    soilFactor;
 
   // The "logistic" part: growth slows down as biomass approaches the max.
   // At low biomass (little grass) this term is small too — not much leaf
